@@ -3,7 +3,7 @@
 
 Этот модуль предоставляет функции для поиска научных статей по названию
 и получения ссылок на PDF файлы или DOI. Использует библиотеку pyalex
-для взаимодействия с OpenAlex API.
+для взаимодействия с OpenAlex API и sci_hub.py для резервного поиска PDF.
 
 Основные функции:
 - search_article_link: Поиск одной статьи по названию
@@ -25,6 +25,54 @@
 from pyalex import Works
 import logging
 from typing import Optional, Dict, Any, List, Union
+
+# Импортируем SciHubSearcher для резервного поиска PDF
+try:
+    from sci_hub import SciHubSearcher
+    SCIHUB_AVAILABLE = True
+    logging.info("SciHub integration доступен")
+except ImportError:
+    SCIHUB_AVAILABLE = False
+    logging.warning("SciHub integration недоступен - установите библиотеку scihub")
+
+def try_scihub_search(doi_url: str) -> Optional[str]:
+    """
+    Попытка найти PDF через Sci-Hub используя DOI
+    
+    Args:
+        doi_url (str): DOI ссылка статьи
+        
+    Returns:
+        Optional[str]: PDF ссылка или None если не найдено
+    """
+    if not SCIHUB_AVAILABLE:
+        return None
+        
+    try:
+        # Извлекаем чистый DOI из URL
+        if doi_url.startswith('https://doi.org/'):
+            doi = doi_url.replace('https://doi.org/', '')
+        elif doi_url.startswith('http://dx.doi.org/'):
+            doi = doi_url.replace('http://dx.doi.org/', '')
+        else:
+            doi = doi_url
+            
+        # Инициализируем SciHub searcher
+        scihub_searcher = SciHubSearcher()
+        
+        # Ищем статью по DOI
+        result = scihub_searcher.search_paper_by_doi(doi)
+        
+        if result and result.get('status') == 'success':
+            pdf_url = result.get('pdf_url')
+            if pdf_url:
+                logging.info(f"Найден PDF через Sci-Hub: {pdf_url}")
+                return pdf_url
+                
+    except Exception as e:
+        logging.warning(f"Ошибка при поиске через Sci-Hub: {str(e)}")
+        
+    return None
 
 def search_article_link(title: str) -> Optional[Dict[str, Any]]:
     """
@@ -115,6 +163,16 @@ def search_article_link(title: str) -> Optional[Dict[str, Any]]:
                     logging.info(f"Найдена PDF ссылка в источниках: {article_info['pdf_url']}")
                     break
         
+        # Если PDF не найден через OpenAlex, пробуем Sci-Hub
+        if not article_info['pdf_url'] and article_info['doi_url']:
+            logging.info("PDF не найден в OpenAlex, пробуем Sci-Hub...")
+            scihub_pdf = try_scihub_search(article_info['doi_url'])
+            if scihub_pdf:
+                article_info['pdf_url'] = scihub_pdf
+                article_info['pdf_source'] = 'scihub'  # Помечаем источник
+            else:
+                logging.info("PDF не найден и в Sci-Hub")
+        
         return article_info
         
     except Exception as e:
@@ -193,6 +251,13 @@ def search_multiple_articles(title: str, max_results: int = 5) -> List[Dict[str,
                     if location.get('pdf_url'):
                         article_info['pdf_url'] = location['pdf_url']
                         break
+            
+            # Если PDF не найден через OpenAlex, пробуем Sci-Hub
+            if not article_info['pdf_url'] and article_info['doi_url']:
+                scihub_pdf = try_scihub_search(article_info['doi_url'])
+                if scihub_pdf:
+                    article_info['pdf_url'] = scihub_pdf
+                    article_info['pdf_source'] = 'scihub'
             
             articles.append(article_info)
         
@@ -288,6 +353,16 @@ def search_by_exact_title(title: str) -> Optional[Dict[str, Any]]:
                     logging.info(f"Найдена PDF ссылка в источниках: {article_info['pdf_url']}")
                     break
         
+        # Если PDF не найден через OpenAlex, пробуем Sci-Hub
+        if not article_info['pdf_url'] and article_info['doi_url']:
+            logging.info("PDF не найден в OpenAlex, пробуем Sci-Hub...")
+            scihub_pdf = try_scihub_search(article_info['doi_url'])
+            if scihub_pdf:
+                article_info['pdf_url'] = scihub_pdf
+                article_info['pdf_source'] = 'scihub'  # Помечаем источник
+            else:
+                logging.info("PDF не найден и в Sci-Hub")
+        
         return article_info
         
     except Exception as e:
@@ -346,8 +421,6 @@ def main():
     
     # Пример 1: Простой поиск статьи
     print("=== Пример 1: Простой поиск ===")
-    # article_title = "The Effect of Addition of ppm-Order Pd to Fe-K Catalyst on Dehydrogenation of Ethylbenzene"
-
     article_title = "Direct conversion of phenols into primary anilines with hydrazine catalyzed by palladium"
     print(f"Поиск статьи: '{article_title}'")
     result = search_by_exact_title(article_title)
@@ -368,13 +441,37 @@ def main():
         print(f"Открытый доступ: {'Да' if result['is_open_access'] else 'Нет'}")
         
         if result['pdf_url']:
-            print(f"PDF ссылка: {result['pdf_url']}")
+            pdf_source = result.get('pdf_source', 'openalex')
+            source_label = ' (Sci-Hub)' if pdf_source == 'scihub' else ' (OpenAlex)'
+            print(f"PDF ссылка{source_label}: {result['pdf_url']}")
         
         if result['doi_url']:
             print(f"DOI ссылка: {result['doi_url']}")
         
         if not result['pdf_url'] and not result['doi_url']:
             print("Ссылки на статью не найдены")
+    else:
+        print("Статья не найдена")
+    
+    # Пример 2: Тест интеграции с Sci-Hub
+    print("\n=== Пример 2: Тест Sci-Hub интеграции ===")
+    test_title = "Machine learning for drug discovery"
+    print(f"Поиск статьи (с резервным Sci-Hub): '{test_title}'")
+    scihub_test = search_article_link(test_title)
+    
+    if scihub_test:
+        print(f"Название: {scihub_test['title']}")
+        print(f"Открытый доступ: {'Да' if scihub_test['is_open_access'] else 'Нет'}")
+        
+        if scihub_test['pdf_url']:
+            pdf_source = scihub_test.get('pdf_source', 'openalex')
+            source_label = ' (Sci-Hub)' if pdf_source == 'scihub' else ' (OpenAlex)'
+            print(f"PDF найден{source_label}: {scihub_test['pdf_url']}")
+        else:
+            print("PDF не найден даже через Sci-Hub")
+            
+        if scihub_test['doi_url']:
+            print(f"DOI: {scihub_test['doi_url']}")
     else:
         print("Статья не найдена")
 
