@@ -74,6 +74,63 @@ def try_scihub_search(doi_url: str) -> Optional[str]:
         
     return None
 
+def is_pdf_url(url: str) -> bool:
+    """
+    Проверяет, ведет ли URL на PDF файл
+    
+    Args:
+        url (str): URL для проверки
+        
+    Returns:
+        bool: True если URL ведет на PDF, False иначе
+    """
+    if not url:
+        return False
+        
+    url_lower = url.lower()
+    
+    # Очевидные PDF ссылки
+    if url_lower.endswith('.pdf'):
+        return True
+        
+    # PDF параметры в URL
+    if 'pdf' in url_lower and ('render' in url_lower or 'download' in url_lower or 'view' in url_lower):
+        return True
+        
+    # Известные PDF хостинги
+    pdf_hosts = [
+        'europepmc.org/articles/',
+        'arxiv.org/pdf/',
+        'biorxiv.org/content/',
+        'researchgate.net/profile/',
+        'pubs.rsc.org/en/content/articlepdf',
+        'acs.org/doi/pdf',
+        'nature.com/articles/',
+        'science.org/doi/pdf',
+        'cell.com/action/showPdf'
+    ]
+    
+    for host in pdf_hosts:
+        if host in url_lower:
+            return True
+    
+    # НЕ PDF ссылки (DOI и подобные)
+    non_pdf_patterns = [
+        'doi.org/',
+        'dx.doi.org/',
+        'handle.net/',
+        'openalex.org/',
+        'semanticscholar.org/',
+        'pubmed.ncbi.nlm.nih.gov/',
+        'crossref.org/'
+    ]
+    
+    for pattern in non_pdf_patterns:
+        if pattern in url_lower:
+            return False
+            
+    return False
+
 def search_article_link(title: str) -> Optional[Dict[str, Any]]:
     """
     Поиск ссылки на PDF или DOI статьи по названию через OpenAlex API
@@ -92,6 +149,9 @@ def search_article_link(title: str) -> Optional[Dict[str, Any]]:
             - publication_month: Месяц публикации
             - publication_day: День публикации
             - is_open_access: Статус открытого доступа
+            - journal: Название журнала/venue
+            - journal_issn: ISSN журнала
+            - journal_publisher: Издатель журнала
             
     Returns None если статья не найдена
     """
@@ -134,8 +194,41 @@ def search_article_link(title: str) -> Optional[Dict[str, Any]]:
             'publication_day': publication_day,
             'is_open_access': article.get('open_access', {}).get('is_oa', False),
             'pdf_url': None,
-            'doi_url': None
+            'doi_url': None,
+            'journal': None,
+            'journal_issn': None,
+            'journal_publisher': None
         }
+        
+        # Извлекаем информацию о журнале/venue
+        primary_location = article.get('primary_location')
+        if primary_location and primary_location.get('source'):
+            source = primary_location['source']
+            article_info['journal'] = source.get('display_name')
+            
+            # Извлекаем ISSN
+            issn_l = source.get('issn_l')
+            issn = source.get('issn')
+            if issn_l:
+                article_info['journal_issn'] = issn_l
+            elif issn and len(issn) > 0:
+                article_info['journal_issn'] = issn[0]
+            
+            # Извлекаем издателя
+            article_info['journal_publisher'] = source.get('publisher')
+            
+            logging.info(f"Найден журнал: {article_info['journal']}")
+        else:
+            # Проверяем альтернативные источники
+            locations = article.get('locations', [])
+            for location in locations:
+                if location.get('source') and location['source'].get('display_name'):
+                    source = location['source']
+                    article_info['journal'] = source.get('display_name')
+                    article_info['journal_issn'] = source.get('issn_l') or (source.get('issn', [None])[0] if source.get('issn') else None)
+                    article_info['journal_publisher'] = source.get('publisher')
+                    logging.info(f"Найден журнал в альтернативных источниках: {article_info['journal']}")
+                    break
         
         # Всегда заполняем DOI URL если доступен
         doi = article.get('doi')
@@ -152,16 +245,24 @@ def search_article_link(title: str) -> Optional[Dict[str, Any]]:
         # Поиск PDF ссылки
         open_access_info = article.get('open_access', {})
         if open_access_info.get('is_oa') and open_access_info.get('oa_url'):
-            article_info['pdf_url'] = open_access_info['oa_url']
-            logging.info(f"Найдена PDF ссылка: {article_info['pdf_url']}")
-        else:
-            # Проверяем другие источники для PDF
+            oa_url = open_access_info['oa_url']
+            if is_pdf_url(oa_url):
+                article_info['pdf_url'] = oa_url
+                logging.info(f"Найдена PDF ссылка: {article_info['pdf_url']}")
+            else:
+                logging.info(f"oa_url не является PDF ссылкой: {oa_url}")
+        
+        # Если PDF не найден в oa_url, проверяем другие источники
+        if not article_info['pdf_url']:
             locations = article.get('locations', [])
             for location in locations:
-                if location.get('pdf_url'):
-                    article_info['pdf_url'] = location['pdf_url']
+                pdf_url = location.get('pdf_url')
+                if pdf_url and is_pdf_url(pdf_url):
+                    article_info['pdf_url'] = pdf_url
                     logging.info(f"Найдена PDF ссылка в источниках: {article_info['pdf_url']}")
                     break
+                elif pdf_url:
+                    logging.info(f"URL в locations не является PDF ссылкой: {pdf_url}")
         
         # Если PDF не найден через OpenAlex, пробуем Sci-Hub
         if not article_info['pdf_url'] and article_info['doi_url']:
@@ -228,8 +329,29 @@ def search_multiple_articles(title: str, max_results: int = 5) -> List[Dict[str,
                 'is_open_access': article.get('open_access', {}).get('is_oa', False),
                 'cited_by_count': article.get('cited_by_count', 0),
                 'pdf_url': None,
-                'doi_url': None
+                'doi_url': None,
+                'journal': None,
+                'journal_issn': None,
+                'journal_publisher': None
             }
+            
+            # Извлекаем информацию о журнале
+            primary_location = article.get('primary_location')
+            if primary_location and primary_location.get('source'):
+                source = primary_location['source']
+                article_info['journal'] = source.get('display_name')
+                article_info['journal_issn'] = source.get('issn_l') or (source.get('issn', [None])[0] if source.get('issn') else None)
+                article_info['journal_publisher'] = source.get('publisher')
+            else:
+                # Проверяем альтернативные источники
+                locations = article.get('locations', [])
+                for location in locations:
+                    if location.get('source') and location['source'].get('display_name'):
+                        source = location['source']
+                        article_info['journal'] = source.get('display_name')
+                        article_info['journal_issn'] = source.get('issn_l') or (source.get('issn', [None])[0] if source.get('issn') else None)
+                        article_info['journal_publisher'] = source.get('publisher')
+                        break
             
             # Всегда заполняем DOI URL если доступен
             doi = article.get('doi')
@@ -243,14 +365,21 @@ def search_multiple_articles(title: str, max_results: int = 5) -> List[Dict[str,
             # Поиск PDF ссылки
             open_access_info = article.get('open_access', {})
             if open_access_info.get('is_oa') and open_access_info.get('oa_url'):
-                article_info['pdf_url'] = open_access_info['oa_url']
+                oa_url = open_access_info['oa_url']
+                if is_pdf_url(oa_url):
+                    article_info['pdf_url'] = oa_url
+                else:
+                    logging.info(f"oa_url не является PDF ссылкой: {oa_url}")
             else:
                 # Проверяем другие источники для PDF
                 locations = article.get('locations', [])
                 for location in locations:
-                    if location.get('pdf_url'):
-                        article_info['pdf_url'] = location['pdf_url']
+                    pdf_url = location.get('pdf_url')
+                    if pdf_url and is_pdf_url(pdf_url):
+                        article_info['pdf_url'] = pdf_url
                         break
+                    elif pdf_url:
+                        logging.info(f"URL в locations не является PDF ссылкой: {pdf_url}")
             
             # Если PDF не найден через OpenAlex, пробуем Sci-Hub
             if not article_info['pdf_url'] and article_info['doi_url']:
@@ -324,8 +453,29 @@ def search_by_exact_title(title: str) -> Optional[Dict[str, Any]]:
             'publication_day': publication_day,
             'is_open_access': article.get('open_access', {}).get('is_oa', False),
             'pdf_url': None,
-            'doi_url': None
+            'doi_url': None,
+            'journal': None,
+            'journal_issn': None,
+            'journal_publisher': None
         }
+        
+        # Извлекаем информацию о журнале
+        primary_location = article.get('primary_location')
+        if primary_location and primary_location.get('source'):
+            source = primary_location['source']
+            article_info['journal'] = source.get('display_name')
+            article_info['journal_issn'] = source.get('issn_l') or (source.get('issn', [None])[0] if source.get('issn') else None)
+            article_info['journal_publisher'] = source.get('publisher')
+        else:
+            # Проверяем альтернативные источники
+            locations = article.get('locations', [])
+            for location in locations:
+                if location.get('source') and location['source'].get('display_name'):
+                    source = location['source']
+                    article_info['journal'] = source.get('display_name')
+                    article_info['journal_issn'] = source.get('issn_l') or (source.get('issn', [None])[0] if source.get('issn') else None)
+                    article_info['journal_publisher'] = source.get('publisher')
+                    break
         
         # Всегда заполняем DOI URL если доступен
         doi = article.get('doi')
@@ -342,16 +492,24 @@ def search_by_exact_title(title: str) -> Optional[Dict[str, Any]]:
         # Поиск PDF ссылки
         open_access_info = article.get('open_access', {})
         if open_access_info.get('is_oa') and open_access_info.get('oa_url'):
-            article_info['pdf_url'] = open_access_info['oa_url']
-            logging.info(f"Найдена PDF ссылка: {article_info['pdf_url']}")
-        else:
-            # Проверяем другие источники для PDF
+            oa_url = open_access_info['oa_url']
+            if is_pdf_url(oa_url):
+                article_info['pdf_url'] = oa_url
+                logging.info(f"Найдена PDF ссылка: {article_info['pdf_url']}")
+            else:
+                logging.info(f"oa_url не является PDF ссылкой: {oa_url}")
+        
+        # Если PDF не найден в oa_url, проверяем другие источники
+        if not article_info['pdf_url']:
             locations = article.get('locations', [])
             for location in locations:
-                if location.get('pdf_url'):
-                    article_info['pdf_url'] = location['pdf_url']
+                pdf_url = location.get('pdf_url')
+                if pdf_url and is_pdf_url(pdf_url):
+                    article_info['pdf_url'] = pdf_url
                     logging.info(f"Найдена PDF ссылка в источниках: {article_info['pdf_url']}")
                     break
+                elif pdf_url:
+                    logging.info(f"URL в locations не является PDF ссылкой: {pdf_url}")
         
         # Если PDF не найден через OpenAlex, пробуем Sci-Hub
         if not article_info['pdf_url'] and article_info['doi_url']:
@@ -421,7 +579,8 @@ def main():
     
     # Пример 1: Простой поиск статьи
     print("=== Пример 1: Простой поиск ===")
-    article_title = "Direct conversion of phenols into primary anilines with hydrazine catalyzed by palladium"
+    # article_title = "Direct conversion of phenols into primary anilines with hydrazine catalyzed by palladium"
+    article_title = "The Effect of Addition of ppm-Order Pd to Fe-K Catalyst on Dehydrogenation of Ethylbenzene"
     print(f"Поиск статьи: '{article_title}'")
     result = search_by_exact_title(article_title)
     
@@ -440,6 +599,14 @@ def main():
         
         print(f"Открытый доступ: {'Да' if result['is_open_access'] else 'Нет'}")
         
+        # Показываем информацию о журнале
+        if result['journal']:
+            print(f"Журнал: {result['journal']}")
+            if result['journal_issn']:
+                print(f"ISSN: {result['journal_issn']}")
+            if result['journal_publisher']:
+                print(f"Издатель: {result['journal_publisher']}")
+        
         if result['pdf_url']:
             pdf_source = result.get('pdf_source', 'openalex')
             source_label = ' (Sci-Hub)' if pdf_source == 'scihub' else ' (OpenAlex)'
@@ -453,27 +620,7 @@ def main():
     else:
         print("Статья не найдена")
     
-    # Пример 2: Тест интеграции с Sci-Hub
-    print("\n=== Пример 2: Тест Sci-Hub интеграции ===")
-    test_title = "Machine learning for drug discovery"
-    print(f"Поиск статьи (с резервным Sci-Hub): '{test_title}'")
-    scihub_test = search_article_link(test_title)
-    
-    if scihub_test:
-        print(f"Название: {scihub_test['title']}")
-        print(f"Открытый доступ: {'Да' if scihub_test['is_open_access'] else 'Нет'}")
-        
-        if scihub_test['pdf_url']:
-            pdf_source = scihub_test.get('pdf_source', 'openalex')
-            source_label = ' (Sci-Hub)' if pdf_source == 'scihub' else ' (OpenAlex)'
-            print(f"PDF найден{source_label}: {scihub_test['pdf_url']}")
-        else:
-            print("PDF не найден даже через Sci-Hub")
-            
-        if scihub_test['doi_url']:
-            print(f"DOI: {scihub_test['doi_url']}")
-    else:
-        print("Статья не найдена")
+
 
 
 if __name__ == "__main__":
