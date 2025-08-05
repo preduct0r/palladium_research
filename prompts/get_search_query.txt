@@ -1,0 +1,13 @@
+Given the following prompt from the user, generate a search query for yandex engine to research the topic.
+<prompt>
+Q: Какова основная идея статьи?
+A: <IDEA>
+Q: Какое направление (тематика) у этой статьи?
+A: TEMATIC>
+Q: О какой промышленной технологии идет речь в этой статье?
+A: <TECHNOLOGY>
+Q: <QUESTION>
+</prompt>
+Return only query nothing else
+
+

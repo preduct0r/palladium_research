@@ -55,33 +55,47 @@ with open("temp_files/tematic.txt") as f:
     tematic = f.read()
 with open("prompts/get_keywords.txt") as f:
     serp_prompt_template = f.read()
+with open("prompts/get_search_query.txt") as f:
+    search_query_template = f.read()
 model = ChatOpenAI(temperature=0.5, model_name="gpt-4o")
 
-# all_keywords = {}
+all_keywords = {}
+chunks = {}
 
-# for question in questions_demands_search:
-#     serp_prompt = serp_prompt_template.replace("<QUESTION>", question).replace("<IDEA>", idea).replace("<TECHNOLOGY>", technology).replace("<TEMATIC>", tematic)
-#     prompt = ChatPromptTemplate.from_template(serp_prompt)
-#     keywords_chain = prompt | model | StrOutputParser()
-#     # The prompt is already fully formed, so we pass an empty dictionary to invoke.
-#     raw_keywords = keywords_chain.invoke({})
+for question in questions_demands_search:
+    # serp_prompt = serp_prompt_template.replace("<QUESTION>", question).replace("<IDEA>", idea).replace("<TECHNOLOGY>", technology).replace("<TEMATIC>", tematic)
+    # serp_chain = ChatPromptTemplate.from_template(serp_prompt) | model | StrOutputParser()
+    # # The prompt is already fully formed, so we pass an empty dictionary to invoke.
+    # raw_keywords = serp_chain.invoke({})
     
-#     # Очищаем результат от лишнего текста и получаем только ключевые слова
-#     keywords = raw_keywords.strip()
-#     # Удаляем возможные префиксы типа "Keywords:", "Answer:", etc.
-#     keywords = re.sub(r'^[^:]*:\s*', '', keywords)
-#     # Удаляем лишние пробелы и переносы строк
-#     keywords = re.sub(r'\s+', ' ', keywords).strip()
+    # # Очищаем результат от лишнего текста и получаем только ключевые слова
+    # keywords = raw_keywords.strip()
+    # # Удаляем возможные префиксы типа "Keywords:", "Answer:", etc.
+    # keywords = re.sub(r'^[^:]*:\s*', '', keywords)
+    # # Удаляем лишние пробелы и переносы строк
+    # keywords = re.sub(r'\s+', ' ', keywords).strip()
     
-#     print(f"Вопрос: {question}")
-#     print(f"Ключевые слова: {keywords}")
-#     all_keywords.add(keywords)
+    # print(f"Вопрос: {question}")
+    # print(f"Ключевые слова: {keywords}")
+    # all_keywords.add(keywords)
+
+    # ================================
+    query_prompt = search_query_template.replace("<QUESTION>", question).replace("<IDEA>", idea).replace("<TECHNOLOGY>", technology).replace("<TEMATIC>", tematic)
+    query_chain = ChatPromptTemplate.from_template(query_prompt) | model | StrOutputParser()
+    # The prompt is already fully formed, so we pass an empty dictionary to invoke.
+    _query = query_chain.invoke({})
+    yandex_snippets = YandexSearch(_query).extract_yandex_snippets()
+    chunks.add(yandex_snippets)
+
+    # ================================
+    
+     
 
 
-all_keywords = {"дегидрирование этилбензола", "палладий катализатор"}
+# all_keywords = {"дегидрирование этилбензола", "палладий катализатор"}
 
-for keyword in all_keywords:
-    openalex_results = extract_openalex_pdfs(keyword)
+# for keyword in all_keywords:
+#     openalex_results = extract_openalex_pdfs(keyword)
 
 
 

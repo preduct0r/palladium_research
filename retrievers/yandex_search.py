@@ -37,7 +37,7 @@ class YandexSearch:
 
         self.endpoint = "https://searchapi.api.cloud.yandex.net/v2/web/search"
 
-    def extract_yandex_snippets(self, max_results=1):
+    def extract_yandex_snippets(self, max_results=20):
         """
         Выполняет запрос к Yandex Search API. Если приходит rawData (XML в Base64),
         декодирует, парсит с помощью _parse_xml_results и возвращает список словарей.
@@ -124,10 +124,10 @@ class YandexSearch:
             return snippets
 
         snippets = extract_snippets(xml)
-        return snippets[:max_results]
+        return snippets
 
 
 if __name__ == "__main__":
     yandex_search = YandexSearch("Уровень развития аффинажа палладия")
-    results = yandex_search.extract_yandex_snippets(max_results=15)
+    results = yandex_search.extract_yandex_snippets(max_results=20)
     print(results)  
