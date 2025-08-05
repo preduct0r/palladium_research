@@ -7,3 +7,4 @@
 *.jsonl.tar.gz
 
 data/
+.env

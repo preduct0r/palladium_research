@@ -4,15 +4,17 @@ from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
-
+import uuid
 from langchain_core.prompts import ChatPromptTemplate
 import re
+from langchain.schema.document import Document
 
 
 from retrievers._serpapi import extract_serpapi_pdfs
 from retrievers.yandex_search import YandexSearch
 from retrievers.openalex import extract_openalex_pdfs
 from pathlib import Path
+from unstructured.partition.pdf import partition_pdf
 
 load_dotenv()
 
@@ -86,10 +88,93 @@ def download_relevant_pdfs(questions_demands_search, article_name):
     return chunks, all_keywords
 
 
+def get_relevant_data_chunks(file_dir):
+    # Reference: https://docs.unstructured.io/open-source/core-functionality/chunking
+    
+    # Найти все PDF файлы в папке и подпапках
+    pdf_files = []
+    file_dir_path = Path(file_dir)
+    
+    # Рекурсивно найти все PDF файлы
+    for pdf_file in file_dir_path.rglob("*.pdf"):
+        pdf_files.append(pdf_file)
+    
+    print(f"Найдено {len(pdf_files)} PDF файлов в папке {file_dir}")
+    
+    all_texts = []
+    
+    # Обработать каждый PDF файл
+    for pdf_file in pdf_files:
+        print(f"Обработка файла: {pdf_file}")
+        try:
+            chunks = partition_pdf(
+                filename=str(pdf_file),
+                infer_table_structure=False,           # disable table extraction
+                strategy="hi_res",                     # mandatory for better text extraction
+
+                # Remove image extraction parameters
+                # extract_image_block_types=["Image"],   # disabled - no images
+                # extract_image_block_to_payload=True,   # disabled - no images
+
+                chunking_strategy="by_title",          # or 'basic'
+                max_characters=1000,                  # defaults to 500
+                combine_text_under_n_chars=500,       # defaults to 0
+                new_after_n_chars=6000,
+
+                # extract_images_in_pdf=True,          # deprecated
+            )
+
+            # ================================
+            # extract only text chunks
+            texts = []
+
+            for chunk in chunks:
+                # Only keep text elements, skip tables and images
+                if "CompositeElement" in str(type(chunk)) or "NarrativeText" in str(type(chunk)) or "Title" in str(type(chunk)):
+                    texts.append(chunk)
+            
+            all_texts.extend(texts)
+            print(f"Извлечено {len(texts)} текстовых чанков из {pdf_file}")
+            
+        except Exception as e:
+            print(f"Ошибка при обработке файла {pdf_file}: {e}")
+            continue
+
+    print(f"Всего извлечено {len(all_texts)} текстовых чанков из всех файлов")
+    return all_texts  # Return only texts, no tables
 
 
 
-
-
-
-
+def get_relevant_data_vectorstore(texts):
+    """
+    Creates a vector store for relevant data using simple Chroma vectorstore.
+    Indexes full text chunks directly for retrieval.
+    """
+    # ================================
+    # Create vectorstore for full text chunks
+    vectorstore = Chroma(collection_name="relevant_data", embedding_function=_embeddings)
+    
+    # Convert text chunks to Document objects
+    documents = []
+    for i, text_chunk in enumerate(texts):
+        # Extract text content from unstructured elements
+        if hasattr(text_chunk, 'text'):
+            content = text_chunk.text
+        else:
+            content = str(text_chunk)
+        
+        # Create Document with metadata
+        doc = Document(
+            page_content=content,
+            metadata={
+                "chunk_id": i,
+                "source": "pdf_chunk"
+            }
+        )
+        documents.append(doc)
+    
+    # Add documents to vectorstore
+    vectorstore.add_documents(documents)
+    
+    # Return retriever
+    return vectorstore.as_retriever(search_kwargs={"k": 10})
