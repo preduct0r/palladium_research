@@ -13,6 +13,8 @@ from langchain.retrievers.multi_vector import MultiVectorRetriever
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
 from unstructured.partition.pdf import partition_pdf
+from retrievers.openalex import find_article_by_title
+
 
 from utils.rag import parse_docs, build_prompt
 
@@ -147,6 +149,110 @@ def get_article_vectorstore(texts, text_summaries, tables, table_summaries):
 
 
 
+def get_article_title_info(texts, article_name):
+    # Извлекаем название статьи из первого чанка (обычно там находится заголовок)
+    article_title = None
+    if texts:
+        # Ищем заголовок в первых нескольких чанках
+        for text_chunk in texts[:3]:  # Проверяем первые 3 чанка
+            text_content = text_chunk.page_content.strip()
+            lines = text_content.split('\n')
+            
+            # Ищем строки которые могут быть заголовком (обычно короткие и без лишних символов)
+            for line in lines[:5]:  # Проверяем первые 5 строк каждого чанка
+                line = line.strip()
+                if len(line) > 10 and len(line) < 200 and not line.startswith('Abstract'):
+                    # Простая эвристика для определения заголовка
+                    if any(word in line.lower() for word in ['palladium', 'technology', 'method', 'analysis', 'study']):
+                        article_title = line
+                        break
+            if article_title:
+                break
 
+    # Если автоматическое извлечение не сработало, используем имя файла
+    if not article_title:
+        print("Не удалось автоматически извлечь название, используем имя файла")
+        article_title = article_name.replace("_", " ")
 
+    print(f"Предполагаемое название статьи: '{article_title}'")
+
+    # Ищем статью в OpenAlex
+    article_info = find_article_by_title(article_title)
+
+    # Сохраняем информацию о статье в две папки: article_info (полная) и answers (основные поля)
+    article_info_dir = Path("data") / article_name / "article_info"
+    article_info_dir.mkdir(parents=True, exist_ok=True)
+    
+    answers_dir = Path("data") / article_name / "answers"
+    answers_dir.mkdir(parents=True, exist_ok=True)
+
+    if article_info:
+        print("\n✅ Информация о статье найдена в OpenAlex:")
+        print(f"Название: {article_info['title']}")
+        print(f"DOI: {article_info['doi'] or 'Не указан'}")
+        print(f"Журнал: {article_info['journal_name'] or 'Не указан'}")
+        print(f"Дата публикации: {article_info['publication_date'] or 'Не указана'}")
+        print(f"Год: {article_info['publication_year'] or 'Не указан'}")
+        print(f"Цитирований: {article_info['cited_by_count']}")
+        
+        # Сохраняем полную информацию в JSON файл
+        import json
+        info_file = article_info_dir / "openalex_info.json"
+        with open(info_file, 'w', encoding='utf-8') as f:
+            json.dump(article_info, f, ensure_ascii=False, indent=2)
+        print(f"Полная информация сохранена в: {info_file}")
+        
+        # Сохраняем полные поля в article_info для справки
+        fields_to_save_full = {
+            'title.txt': article_info['title'],
+            'doi.txt': article_info['doi'] or 'Не указан',
+            'journal.txt': article_info['journal_name'] or 'Не указан',
+            'publication_date.txt': article_info['publication_date'] or 'Не указана',
+            'publication_year.txt': str(article_info['publication_year']) if article_info['publication_year'] else 'Не указан',
+            'citations.txt': str(article_info['cited_by_count'])
+        }
+        
+        for filename, content in fields_to_save_full.items():
+            field_file = article_info_dir / filename
+            with open(field_file, 'w', encoding='utf-8') as f:
+                f.write(content)
+        
+        # Сохраняем основные поля в answers папку
+        answers_fields = {
+            'doi.txt': article_info['doi'] or 'Не указан',
+            'journal.txt': article_info['journal_name'] or 'Не указан',
+            'date.txt': article_info['publication_date'] or 'Не указана'
+        }
+        
+        for filename, content in answers_fields.items():
+            field_file = answers_dir / filename
+            with open(field_file, 'w', encoding='utf-8') as f:
+                f.write(content)
+        
+        print("Основные поля сохранены в папку answers")
+        print("Полные поля сохранены в папку article_info")
+    else:
+        print("❌ Информация о статье не найдена в OpenAlex")
+        
+        # Сохраняем информацию о том, что статья не найдена
+        not_found_file = article_info_dir / "not_found.txt"
+        with open(not_found_file, 'w', encoding='utf-8') as f:
+            f.write(f"Статья с названием '{article_title}' не найдена в OpenAlex")
+        print(f"Информация о поиске сохранена в: {not_found_file}")
+        
+        # Сохраняем заглушки в answers папку
+        answers_fields = {
+            'doi.txt': 'Не найден',
+            'journal.txt': 'Не найден',
+            'date.txt': 'Не найдена'
+        }
+        
+        for filename, content in answers_fields.items():
+            field_file = answers_dir / filename
+            with open(field_file, 'w', encoding='utf-8') as f:
+                f.write(content)
+        
+        print("Заглушки сохранены в папку answers")
+
+    print("\n" + "="*60 + "\n")
 

@@ -16,7 +16,7 @@ from unstructured.partition.pdf import partition_pdf
 from pathlib import Path
 
 from utils.rag import parse_docs, build_prompt
-from utils.initial_article_processing import get_article_chunks, summarize_article_data, get_article_vectorstore
+from utils.initial_article_processing import get_article_chunks, summarize_article_data, get_article_vectorstore, get_article_title_info
 from utils.difficult_question_processing import download_relevant_pdfs
 from dotenv import load_dotenv, find_dotenv
 # ================================
@@ -29,6 +29,17 @@ load_dotenv(dotenv_path)
 article_path="/home/den/Documents/Nornikel/deep_research/palladium/27208.pdf"
 article_name = Path(article_path).stem.replace(" ", "_")
 
+# ================================
+# Извлечение информации о статье из OpenAlex
+print("Извлекаем информацию о статье из OpenAlex...")
+
+# Сначала получаем чанки статьи для извлечения названия
+texts, tables = get_article_chunks(article_path)
+
+get_article_title_info(texts, article_name)
+
+# ================================
+# Продолжаем с основной обработкой статьи
 texts, tables = get_article_chunks(article_path)
 
 text_summaries, table_summaries = summarize_article_data(texts, tables)
