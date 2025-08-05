@@ -26,7 +26,7 @@ LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false").lower() in ("t
 
 # Questions that demands context
 questions_demands_search = [
-    "Уровень развития технологии под которую делается продукт",
+    "Уровень развития технологии",
     "Новизна применения палладия в данной технологии",
     "Научно-техническая реализуемость внедрения палладия в данной технологии",
     "Коммерческий потенциал внедрения палладия в данной технологии",
@@ -80,16 +80,14 @@ for question in questions_demands_search:
     # all_keywords.add(keywords)
 
     # ================================
-    query_prompt = search_query_template.replace("<QUESTION>", question).replace("<IDEA>", idea).replace("<TECHNOLOGY>", technology).replace("<TEMATIC>", tematic)
-    query_chain = ChatPromptTemplate.from_template(query_prompt) | model | StrOutputParser()
-    # The prompt is already fully formed, so we pass an empty dictionary to invoke.
-    _query = query_chain.invoke({})
+    _query = f"Технология: {technology}. {question}"
     yandex_snippets = YandexSearch(_query).extract_yandex_snippets()
     chunks.add(yandex_snippets)
 
     # ================================
+    _query = f"Технология: {technology}. {question}"
+    extract_serpapi_pdfs(_query)
     
-     
 
 
 # all_keywords = {"дегидрирование этилбензола", "палладий катализатор"}
