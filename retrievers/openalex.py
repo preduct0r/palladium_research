@@ -38,8 +38,7 @@ def search_openalex(query: str, per_page: int = 200, max_results: int = 1000) ->
         params = {
             "search": query,  # Убираем кавычки - OpenAlex сам найдет словосочетания
             "per-page": min(per_page, max_results - len(all_results)),
-            "cursor": cursor,
-            "mailto": "researcher@example.com"
+            "cursor": cursor
         }
         
         try:
@@ -282,20 +281,17 @@ def find_article_by_title(title: str) -> Optional[Dict]:
     base_url = "https://api.openalex.org/works"
     
     # Пробуем несколько вариантов поиска для лучших результатов
-    search_variants = [
-        f'title.search:"{title}"',  # Точный поиск по названию
-        f'title:"{title}"',         # Альтернативный точный поиск
-        title                       # Обычный поиск как резерв
+    search_configs = [
+        # Используем filter для поиска по title
+        {"filter": f"title.search:{title}", "per-page": 10},
+        # Используем общий search
+        {"search": f'"{title}"', "per-page": 10},  # Точная фраза
+        {"search": title, "per-page": 10}         # Обычный поиск
     ]
     
-    for search_query in search_variants:
-        params = {
-            "search": search_query,
-            "per-page": 10,  # Ограничиваем количество для точного поиска
-            "mailto": "researcher@example.com"
-        }
-        
+    for i, params in enumerate(search_configs, 1):
         try:
+            print(f"Попытка {i}: {params}")
             response = requests.get(base_url, params=params, timeout=30)
             response.raise_for_status()
             
@@ -303,6 +299,7 @@ def find_article_by_title(title: str) -> Optional[Dict]:
             results = data.get("results", [])
             
             if not results:
+                print(f"  Результатов не найдено для попытки {i}")
                 continue
                 
             # Ищем точное совпадение названия
@@ -323,6 +320,7 @@ def find_article_by_title(title: str) -> Optional[Dict]:
                     publication_date = work.get('publication_date', '')
                     publication_year = work.get('publication_year', '')
                     
+                    print(f"  ✅ Найдено точное совпадение!")
                     return {
                         'title': work_title,
                         'doi': doi,
@@ -331,11 +329,12 @@ def find_article_by_title(title: str) -> Optional[Dict]:
                         'publication_year': publication_year,
                         'openalex_id': work.get('id', ''),
                         'cited_by_count': work.get('cited_by_count', 0),
-                        'url': work.get('id', '').replace('https://openalex.org/', 'https://openalex.org/works/') if work.get('id') else ''
+                        'url': work.get('id', '').replace('https://openalex.org/', 'https://openalex.org/works/') if work.get('id') else '',
+                        'exact_match': True
                     }
             
-            # Если точного совпадения не найдено, возвращаем наиболее релевантный результат
-            if results and search_query == search_variants[0]:  # Только для первого (самого точного) запроса
+            # Если точного совпадения не найдено, возвращаем наиболее релевантный результат (только для первой попытки)
+            if i == 1 and results:
                 work = results[0]  # Берем первый результат как наиболее релевантный
                 
                 work_title = work.get('title', '').strip()
@@ -352,9 +351,9 @@ def find_article_by_title(title: str) -> Optional[Dict]:
                 publication_date = work.get('publication_date', '')
                 publication_year = work.get('publication_year', '')
                 
-                print(f"Точного совпадения не найдено. Возвращаем наиболее релевантный результат:")
-                print(f"Найдено: '{work_title}'")
-                print(f"Искали: '{title}'")
+                print(f"  ⚠️ Точного совпадения не найдено. Возвращаем наиболее релевантный результат:")
+                print(f"  Найдено: '{work_title}'")
+                print(f"  Искали: '{title}'")
                 
                 return {
                     'title': work_title,
@@ -369,11 +368,21 @@ def find_article_by_title(title: str) -> Optional[Dict]:
                 }
                 
         except requests.exceptions.RequestException as e:
-            print(f"Ошибка запроса для '{search_query}': {e}")
+            print(f"  ❌ Ошибка запроса для попытки {i}: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"     Статус код: {e.response.status_code}")
+                try:
+                    error_data = e.response.json()
+                    print(f"     Ответ сервера: {error_data}")
+                except:
+                    print(f"     Текст ответа: {e.response.text[:500]}")
+            continue
+        except Exception as e:
+            print(f"  ❌ Неожиданная ошибка для попытки {i}: {e}")
             continue
     
     # Если ничего не найдено
-    print(f"Статья с названием '{title}' не найдена в OpenAlex")
+    print(f"❌ Статья с названием '{title}' не найдена в OpenAlex")
     return None
 
 def main():

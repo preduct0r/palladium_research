@@ -26,20 +26,14 @@ if not dotenv_path:
     raise FileNotFoundError("'.env' file not found. Please create one in the project root.")
 load_dotenv(dotenv_path)
 
-article_path="/home/den/Documents/Nornikel/deep_research/palladium/27208.pdf"
+article_path="/home/den/Documents/Nornikel/deep_research/palladium/The Effect of Addition of ppm-Order-Pd to Fe-K Catalyst on Dehydrogenation of Ethylbenzene.pdf"
 article_name = Path(article_path).stem.replace(" ", "_")
 
 # ================================
 # Извлечение информации о статье из OpenAlex
 print("Извлекаем информацию о статье из OpenAlex...")
+get_article_title_info(article_name)
 
-# Сначала получаем чанки статьи для извлечения названия
-texts, tables = get_article_chunks(article_path)
-
-get_article_title_info(texts, article_name)
-
-# ================================
-# Продолжаем с основной обработкой статьи
 texts, tables = get_article_chunks(article_path)
 
 text_summaries, table_summaries = summarize_article_data(texts, tables)
@@ -90,18 +84,18 @@ for question, filename in questions_and_files:
 # Questions that demands context
 questions_demands_search = [
     "Уровень развития технологии",
-    "Новизна применения палладия в данной технологии",
-    "Научно-техническая реализуемость внедрения палладия в данной технологии",
-    "Коммерческий потенциал внедрения палладия в данной технологии",
-    "Конкурентные преимущества палладия в данной технологии",
-    "Уровень готовности технологии с палладием",
-    "Потенциальное потребление палладия, кг",
-    "Перепективность рынка (разработка)",
-    "Уровень рыночного потенциала(коммерция)",
-    "Какова сложность разработки технологии?",
-    "Какова сложность внедрения технологии?",
-    "Каков потенциал коммерциализации технологии?",
-    "Какова предполагаемая длительность разработки?",
+    # "Новизна применения палладия в данной технологии",
+    # "Научно-техническая реализуемость внедрения палладия в данной технологии",
+    # "Коммерческий потенциал внедрения палладия в данной технологии",
+    # "Конкурентные преимущества палладия в данной технологии",
+    # "Уровень готовности технологии с палладием",
+    # "Потенциальное потребление палладия, кг",
+    # "Перепективность рынка (разработка)",
+    # "Уровень рыночного потенциала(коммерция)",
+    # "Какова сложность разработки технологии?",
+    # "Какова сложность внедрения технологии?",
+    # "Каков потенциал коммерциализации технологии?",
+    # "Какова предполагаемая длительность разработки?",
 ]
 
 chunks, all_keywords = download_relevant_pdfs(questions_demands_search, article_name)

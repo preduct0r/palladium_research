@@ -14,6 +14,7 @@ from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
 from unstructured.partition.pdf import partition_pdf
 from retrievers.openalex import find_article_by_title
+from pathlib import Path
 
 
 from utils.rag import parse_docs, build_prompt
@@ -149,32 +150,8 @@ def get_article_vectorstore(texts, text_summaries, tables, table_summaries):
 
 
 
-def get_article_title_info(texts, article_name):
-    # Извлекаем название статьи из первого чанка (обычно там находится заголовок)
-    article_title = None
-    if texts:
-        # Ищем заголовок в первых нескольких чанках
-        for text_chunk in texts[:3]:  # Проверяем первые 3 чанка
-            text_content = text_chunk.page_content.strip()
-            lines = text_content.split('\n')
-            
-            # Ищем строки которые могут быть заголовком (обычно короткие и без лишних символов)
-            for line in lines[:5]:  # Проверяем первые 5 строк каждого чанка
-                line = line.strip()
-                if len(line) > 10 and len(line) < 200 and not line.startswith('Abstract'):
-                    # Простая эвристика для определения заголовка
-                    if any(word in line.lower() for word in ['palladium', 'technology', 'method', 'analysis', 'study']):
-                        article_title = line
-                        break
-            if article_title:
-                break
-
-    # Если автоматическое извлечение не сработало, используем имя файла
-    if not article_title:
-        print("Не удалось автоматически извлечь название, используем имя файла")
-        article_title = article_name.replace("_", " ")
-
-    print(f"Предполагаемое название статьи: '{article_title}'")
+def get_article_title_info(article_name):
+    article_title = article_name.replace("_", " ")
 
     # Ищем статью в OpenAlex
     article_info = find_article_by_title(article_title)

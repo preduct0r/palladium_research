@@ -5,3 +5,5 @@
 *.jsonl
 *.jsonl.gz
 *.jsonl.tar.gz
+
+data/

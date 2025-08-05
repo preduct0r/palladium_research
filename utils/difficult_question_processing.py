@@ -77,12 +77,11 @@ def download_relevant_pdfs(questions_demands_search, article_name):
         # ================================
         _query = f"Технология: {technology}. {question}"
         extract_serpapi_pdfs(_query, article_name=article_name)
-        break
 
-    # all_keywords = {"дегидрирование этилбензола", "палладий катализатор"}
+    all_keywords = {"дегидрирование этилбензола", "палладий катализатор"}
 
-    # for keyword in all_keywords:
-    #     openalex_results = extract_openalex_pdfs(keyword, article_name=article_name)
+    for keyword in all_keywords:
+        openalex_results = extract_openalex_pdfs(keyword, article_name=article_name)
 
     return chunks, all_keywords
 
