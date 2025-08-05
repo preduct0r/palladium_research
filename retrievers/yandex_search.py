@@ -32,28 +32,10 @@ class YandexSearch:
         self.query_domains = query_domains or []
 
 
-        self.api_key = self.headers.get("yandex_api_key") or self._get_api_key()
-        self.folder_id = self.headers.get("yandex_folder_id") or self._get_folder_id()
+        self.api_key = os.environ.get("YC_SEARCH_API")
+        self.folder_id = os.environ.get("YC_FOLDER_ID")
 
         self.endpoint = "https://searchapi.api.cloud.yandex.net/v2/web/search"
-
-    def _get_api_key(self) -> str:
-        api_key = os.environ.get("YC_SEARCH_API") or os.environ.get("YC_API_KEY")
-        if not api_key:
-            raise Exception(
-                "Yandex API key не найден. "
-                "Установите переменную окружения YC_API_KEY или YC_SEARCH_API."
-            )
-        return api_key
-
-    def _get_folder_id(self) -> str:
-        folder_id = os.environ.get("YC_FOLDER_ID")
-        if not folder_id:
-            raise Exception(
-                "Yandex Folder ID не найден. "
-                "Установите переменную окружения YC_FOLDER_ID."
-            )
-        return folder_id
 
     def search(self, max_results=1):
         """
@@ -118,40 +100,33 @@ class YandexSearch:
         return data["result"].get("items", [])[:max_results]
         
     def _parse_xml_results(self, xml: str, max_results: int) -> list[dict]:
-        try:
-            root = ET.fromstring(xml)
-        except ET.ParseError as e:
-            raise Exception(f"Ошибка разбора XML: {e}")
+        import xml.etree.ElementTree as ET
+        import html
 
-        results = []
-        for group in root.findall(".//group"):
-            doc = group.find("doc")
-            if doc is None:
-                continue
+        def strip_outer_quotes(s: str) -> str:
+            return s[1:-1] if len(s) >= 2 and s[0] == s[-1] and s[0] in ("'", '"') else s
 
-            title = doc.findtext("title", default="").strip()
-            url   = doc.findtext("url",   default="").strip()
+        def normalize_newlines(s: str) -> str:
+            # аккуратно разворачиваем только \n, \r, \t — не трогаем кириллицу
+            return s.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t")
 
-            snippet = ""
-            passages = doc.find("passages")
-            if passages is not None:
-   
-                texts = []
-                for p in passages.findall("passage"):
-                    full = "".join(p.itertext()).strip()
-                    if full:
-                        texts.append(full)
-                snippet = " ".join(texts)
+        def extract_snippets(xml_text: str) -> list[str]:
+            xml_text = normalize_newlines(strip_outer_quotes(xml_text))
+            root = ET.fromstring(xml_text)
 
-            if title and url:
-                results.append({"title": title, "href": url, "snippet": snippet})
+            snippets = []
+            for p in root.findall(".//group/doc/passages/passage"):
+                # берём чистый текст, склеивая текст узла и вложенных (в т.ч. <hlword>)
+                txt = "".join(p.itertext()).strip()
+                txt = html.unescape(txt)  # на всякий — декодируем &amp; и т.п.
+                if txt:
+                    snippets.append(txt)
+            return snippets
 
+        snippets = extract_snippets(xml)
+        return snippets[:max_results]
 
-        if self.query_domains:
-            results1 = self.filter_results_by_domain(results)
-            if results1:
-                results = results1
-        return results
+        
     def filter_results_by_domain(self,results):
         """
         Фильтрует результаты по списку доменов.
@@ -170,3 +145,10 @@ class YandexSearch:
             if domain in self.query_domains:
                 filtered.append(item)
         return filtered
+    
+
+
+if __name__ == "__main__":
+    yandex_search = YandexSearch("Уровень развития аффинажа палладия")
+    results = yandex_search.search(max_results=15)
+    print(results)  
