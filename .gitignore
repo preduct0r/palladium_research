@@ -1,1 +1,7 @@
 *.pyc
+*.pdf
+*.json
+*.csv
+*.jsonl
+*.jsonl.gz
+*.jsonl.tar.gz

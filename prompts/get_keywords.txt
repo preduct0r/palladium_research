@@ -1,15 +1,15 @@
 Given the following prompt from the user, generate a list of SERP queries to research the topic.
-Reduce the number of words in each query to its keywords only.
+Reduce the number of words in each query to its keywords only, but not less than 2.
 Return a maximum of 3 queries, but feel free to return less if the original prompt is clear. Make sure each query is unique and not similar to each other: 
 <prompt>
 Q: Какова основная идея статьи?
-A: <ANSWER1>
+A: <IDEA>
 Q: Какое направление (тематика) у этой статьи?
-A: <ANSWER2>
+A: TEMATIC>
 Q: О какой промышленной технологии идет речь в этой статье?
-A: <ANSWER3>
+A: <TECHNOLOGY>
 Q: <QUESTION>
 </prompt>
-
+Return format: keyword1, keyword2, keyword3
 
 
