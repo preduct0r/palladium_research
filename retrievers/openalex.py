@@ -3,7 +3,7 @@ import requests
 import json
 import re
 from pathlib import Path
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Optional
 
 # Импортируем SciHubSearcher для резервного скачивания
 try:
@@ -268,6 +268,113 @@ def extract_openalex_pdfs(query, max_results=10, article_name="default"):
     print(f"  - SciHub: {scihub_count} файлов")
     
     return downloaded_files
+
+def find_article_by_title(title: str) -> Optional[Dict]:
+    """
+    Поиск статьи по точному названию в OpenAlex.
+    
+    Args:
+        title: точное название статьи
+    
+    Returns:
+        Dict с информацией о статье (doi, journal_name, publication_date) или None если не найдена
+    """
+    base_url = "https://api.openalex.org/works"
+    
+    # Пробуем несколько вариантов поиска для лучших результатов
+    search_variants = [
+        f'title.search:"{title}"',  # Точный поиск по названию
+        f'title:"{title}"',         # Альтернативный точный поиск
+        title                       # Обычный поиск как резерв
+    ]
+    
+    for search_query in search_variants:
+        params = {
+            "search": search_query,
+            "per-page": 10,  # Ограничиваем количество для точного поиска
+            "mailto": "researcher@example.com"
+        }
+        
+        try:
+            response = requests.get(base_url, params=params, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            results = data.get("results", [])
+            
+            if not results:
+                continue
+                
+            # Ищем точное совпадение названия
+            for work in results:
+                work_title = work.get('title', '').strip()
+                if work_title.lower() == title.lower():
+                    # Извлекаем нужную информацию
+                    doi = work.get('doi', '')
+                    
+                    # Получаем название журнала
+                    journal_name = ''
+                    primary_location = work.get('primary_location', {})
+                    source = primary_location.get('source', {})
+                    if source:
+                        journal_name = source.get('display_name', '')
+                    
+                    # Получаем дату публикации
+                    publication_date = work.get('publication_date', '')
+                    publication_year = work.get('publication_year', '')
+                    
+                    return {
+                        'title': work_title,
+                        'doi': doi,
+                        'journal_name': journal_name,
+                        'publication_date': publication_date,
+                        'publication_year': publication_year,
+                        'openalex_id': work.get('id', ''),
+                        'cited_by_count': work.get('cited_by_count', 0),
+                        'url': work.get('id', '').replace('https://openalex.org/', 'https://openalex.org/works/') if work.get('id') else ''
+                    }
+            
+            # Если точного совпадения не найдено, возвращаем наиболее релевантный результат
+            if results and search_query == search_variants[0]:  # Только для первого (самого точного) запроса
+                work = results[0]  # Берем первый результат как наиболее релевантный
+                
+                work_title = work.get('title', '').strip()
+                doi = work.get('doi', '')
+                
+                # Получаем название журнала
+                journal_name = ''
+                primary_location = work.get('primary_location', {})
+                source = primary_location.get('source', {})
+                if source:
+                    journal_name = source.get('display_name', '')
+                
+                # Получаем дату публикации
+                publication_date = work.get('publication_date', '')
+                publication_year = work.get('publication_year', '')
+                
+                print(f"Точного совпадения не найдено. Возвращаем наиболее релевантный результат:")
+                print(f"Найдено: '{work_title}'")
+                print(f"Искали: '{title}'")
+                
+                return {
+                    'title': work_title,
+                    'doi': doi,
+                    'journal_name': journal_name,
+                    'publication_date': publication_date,
+                    'publication_year': publication_year,
+                    'openalex_id': work.get('id', ''),
+                    'cited_by_count': work.get('cited_by_count', 0),
+                    'url': work.get('id', '').replace('https://openalex.org/', 'https://openalex.org/works/') if work.get('id') else '',
+                    'exact_match': False
+                }
+                
+        except requests.exceptions.RequestException as e:
+            print(f"Ошибка запроса для '{search_query}': {e}")
+            continue
+    
+    # Если ничего не найдено
+    print(f"Статья с названием '{title}' не найдена в OpenAlex")
+    return None
 
 def main():
     """Пример использования"""
