@@ -37,7 +37,7 @@ class YandexSearch:
 
         self.endpoint = "https://searchapi.api.cloud.yandex.net/v2/web/search"
 
-    def search(self, max_results=1):
+    def extract_yandex_snippets(self, max_results=1):
         """
         Выполняет запрос к Yandex Search API. Если приходит rawData (XML в Base64),
         декодирует, парсит с помощью _parse_xml_results и возвращает список словарей.
@@ -126,29 +126,8 @@ class YandexSearch:
         snippets = extract_snippets(xml)
         return snippets[:max_results]
 
-        
-    def filter_results_by_domain(self,results):
-        """
-        Фильтрует результаты по списку доменов.
-
-        Args:
-            results (list): список словарей результатов, как возвращает search().
-            allowed_domains (list): список доменов, например ["eda.ru", "russianfood.com"].
-
-        Returns:
-            list: отфильтрованные результаты
-        """
-        filtered = []
-        for item in results:
-            parsed_url = urlparse(item["href"])
-            domain = parsed_url.netloc.replace("www.", "")
-            if domain in self.query_domains:
-                filtered.append(item)
-        return filtered
-    
-
 
 if __name__ == "__main__":
     yandex_search = YandexSearch("Уровень развития аффинажа палладия")
-    results = yandex_search.search(max_results=15)
+    results = yandex_search.extract_yandex_snippets(max_results=15)
     print(results)  
