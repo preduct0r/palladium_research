@@ -27,38 +27,50 @@ if not dotenv_path:
 load_dotenv(dotenv_path)
 
 article_path="/home/den/Documents/Nornikel/deep_research/palladium/27208.pdf"
-article_name = Path(article_path).stem  # Извлекаем имя файла без расширения (27208)
+article_name = Path(article_path).stem.replace(" ", "_")
 
-# texts, tables = get_article_chunks(article_path)
+texts, tables = get_article_chunks(article_path)
 
-# text_summaries, table_summaries = summarize_article_data(texts, tables)
-# article_retriever = get_article_vectorstore(texts, text_summaries, tables, table_summaries)
+text_summaries, table_summaries = summarize_article_data(texts, tables)
+article_retriever = get_article_vectorstore(texts, text_summaries, tables, table_summaries)
 
-# chain_with_sources = {
-#     "context": article_retriever | RunnableLambda(parse_docs),
-#     "question": RunnablePassthrough(),
-# } | RunnablePassthrough().assign(
-#     response=(
-#         RunnableLambda(build_prompt)
-#         | ChatOpenAI(model="gpt-4o-mini")
-#         | StrOutputParser()
-#     )
-# )
+chain_with_sources = {
+    "context": article_retriever | RunnableLambda(parse_docs),
+    "question": RunnablePassthrough(),
+} | RunnablePassthrough().assign(
+    response=(
+        RunnableLambda(build_prompt)
+        | ChatOpenAI(model="gpt-4o-mini")
+        | StrOutputParser()
+    )
+)
 
-# for question in [   
-#     "Напиши одним предложением длинной не боллее 15 слов о какой промышленной технологии идет речь в этой статье. Выведи только название технологии",
-#     "Какова основная идея статьи?",
-#     "Какое направление (тематика) у этой статьи?",
-#     ]:
-#     response = chain_with_sources.invoke(question)
+# Создаем папку для сохранения ответов
+answers_dir = Path("data") / article_name / "answers"
+answers_dir.mkdir(parents=True, exist_ok=True)
 
-#     print("Response:", response['response'])
+questions_and_files = [   
+    ("Напиши одним предложением длинной не боллее 15 слов о какой промышленной технологии идет речь в этой статье. Выведи только название технологии", "technology.txt"),
+    ("Какова основная идея статьи?", "idea.txt"),
+    ("Какое направление (тематика) у этой статьи?", "tematic.txt"),
+]
 
-#     print("\n\nContext:")
-#     for text in response['context']['texts']:
-#         print(text.text)
-#         print("Page number: ", text.metadata.page_number)
-#         print("\n" + "-"*50 + "\n")
+for question, filename in questions_and_files:
+    response = chain_with_sources.invoke(question)
+
+    print("Response:", response['response'])
+    
+    # Сохраняем ответ в файл
+    file_path = answers_dir / filename
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(response['response'])
+    print(f"Ответ сохранен в: {file_path}")
+
+    print("\n\nContext:")
+    for text in response['context']['texts']:
+        print(text.text)
+        print("Page number: ", text.metadata.page_number)
+        print("\n" + "-"*50 + "\n")
 
 
 

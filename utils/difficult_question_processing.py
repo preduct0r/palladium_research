@@ -12,6 +12,7 @@ import re
 from retrievers._serpapi import extract_serpapi_pdfs
 from retrievers.yandex_search import YandexSearch
 from retrievers.openalex import extract_openalex_pdfs
+from pathlib import Path
 
 load_dotenv()
 
@@ -27,12 +28,6 @@ _embeddings = GigaChatEmbeddings(model = "EmbeddingsGigaR",credentials= os.envir
 
 chroma_vector_store = Chroma(collection_name="relevant_data", embedding_function=_embeddings)
 
-with open("temp_files/idea.txt") as f:
-    idea = f.read()
-with open("temp_files/technology.txt") as f:
-    technology = f.read()
-with open("temp_files/tematic.txt") as f:
-    tematic = f.read()
 with open("prompts/get_keywords.txt") as f:
     serp_prompt_template = f.read()
 with open("prompts/get_search_query.txt") as f:
@@ -41,6 +36,16 @@ model = ChatOpenAI(temperature=0.5, model_name="gpt-4o")
 
 
 def download_relevant_pdfs(questions_demands_search, article_name):
+    # Читаем ответы из новых файлов
+    answers_dir = Path("data") / article_name / "answers"
+    
+    with open(answers_dir / "idea.txt", encoding='utf-8') as f:
+        idea = f.read()
+    with open(answers_dir / "technology.txt", encoding='utf-8') as f:
+        technology = f.read()
+    with open(answers_dir / "tematic.txt", encoding='utf-8') as f:
+        tematic = f.read()
+    
     all_keywords = set()
     chunks = set()
 
