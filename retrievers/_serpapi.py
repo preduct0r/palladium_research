@@ -51,7 +51,7 @@ def print_results(results):
         print(f"   Основная ссылка: {result.get('link', 'Нет ссылки')}")
         print()
 
-def extract_serpapi_pdfs(query, max_results=10):
+def extract_serpapi_pdfs(query, max_results=10, article_name="default"):
     """Извлечение и скачивание PDF файлов из результатов поиска Google Scholar"""
     # Получаем результаты поиска
     results = scholar_search(query)
@@ -60,8 +60,8 @@ def extract_serpapi_pdfs(query, max_results=10):
         print("Результаты поиска не найдены")
         return []
     
-    # Создаем папку для сохранения PDF
-    output_dir = Path("data/1/serpapi")
+    # Создаем папку для сохранения PDF с учетом названия статьи
+    output_dir = Path("data") / article_name / "serpapi"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     downloaded_files = []

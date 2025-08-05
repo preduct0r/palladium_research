@@ -134,7 +134,7 @@ def download_pdf_from_url(pdf_url: str, filepath: Path, title: str) -> bool:
         print(f"   Неожиданная ошибка: {e}")
         return False
 
-def extract_openalex_pdfs(query, max_results=10):
+def extract_openalex_pdfs(query, max_results=10, article_name="default"):
     """Извлечение и скачивание PDF файлов из результатов поиска OpenAlex"""
     # Получаем результаты поиска
     results = search_with_pyalex(query, max_results)
@@ -143,9 +143,9 @@ def extract_openalex_pdfs(query, max_results=10):
         print("Результаты поиска не найдены")
         return []
     
-    # Создаем папку для сохранения PDF в корневой директории проекта
+    # Создаем папку для сохранения PDF с учетом названия статьи
     project_root = Path(__file__).parent.parent  # Поднимаемся на уровень выше из retrievers/
-    output_dir = project_root / "data" / "1" / "openalex"
+    output_dir = project_root / "data" / article_name / "openalex"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     downloaded_files = []
