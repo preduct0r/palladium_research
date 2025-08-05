@@ -23,26 +23,6 @@ LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false").lower() in ("true", "1", "yes")
 
 
-
-# Questions that demands context
-questions_demands_search = [
-    "Уровень развития технологии",
-    "Новизна применения палладия в данной технологии",
-    "Научно-техническая реализуемость внедрения палладия в данной технологии",
-    "Коммерческий потенциал внедрения палладия в данной технологии",
-    "Конкурентные преимущества палладия в данной технологии",
-    "Уровень готовности технологии с палладием",
-    "Потенциальное потребление палладия, кг",
-    "Перепективность рынка (разработка)",
-    "Уровень рыночного потенциала(коммерция)",
-    "Какова сложность разработки технологии?",
-    "Какова сложность внедрения технологии?",
-    "Каков потенциал коммерциализации технологии?",
-    "Какова предполагаемая длительность разработки?",
-]
-
-
-
 _embeddings = GigaChatEmbeddings(model = "EmbeddingsGigaR",credentials= os.environ.get("GIGACHAT_CREDENTIALS"),scope =os.environ.get("GIGACHAT_API_CORP") , verify_ssl_certs = False)
 
 chroma_vector_store = Chroma(collection_name="relevant_data", embedding_function=_embeddings)
@@ -59,41 +39,47 @@ with open("prompts/get_search_query.txt") as f:
     search_query_template = f.read()
 model = ChatOpenAI(temperature=0.5, model_name="gpt-4o")
 
-all_keywords = {}
-chunks = {}
 
-for question in questions_demands_search:
-    # serp_prompt = serp_prompt_template.replace("<QUESTION>", question).replace("<IDEA>", idea).replace("<TECHNOLOGY>", technology).replace("<TEMATIC>", tematic)
-    # serp_chain = ChatPromptTemplate.from_template(serp_prompt) | model | StrOutputParser()
-    # # The prompt is already fully formed, so we pass an empty dictionary to invoke.
-    # raw_keywords = serp_chain.invoke({})
-    
-    # # Очищаем результат от лишнего текста и получаем только ключевые слова
-    # keywords = raw_keywords.strip()
-    # # Удаляем возможные префиксы типа "Keywords:", "Answer:", etc.
-    # keywords = re.sub(r'^[^:]*:\s*', '', keywords)
-    # # Удаляем лишние пробелы и переносы строк
-    # keywords = re.sub(r'\s+', ' ', keywords).strip()
-    
-    # print(f"Вопрос: {question}")
-    # print(f"Ключевые слова: {keywords}")
-    # all_keywords.add(keywords)
+def download_relevant_pdfs(questions_demands_search):
+    all_keywords = set()
+    chunks = set()
 
-    # ================================
-    _query = f"Технология: {technology}. {question}"
-    yandex_snippets = YandexSearch(_query).extract_yandex_snippets()
-    chunks.add(yandex_snippets)
+    for question in questions_demands_search:
+        serp_prompt = serp_prompt_template.replace("<QUESTION>", question).replace("<IDEA>", idea).replace("<TECHNOLOGY>", technology).replace("<TEMATIC>", tematic)
+        serp_chain = ChatPromptTemplate.from_template(serp_prompt) | model | StrOutputParser()
+        # The prompt is already fully formed, so we pass an empty dictionary to invoke.
+        raw_keywords = serp_chain.invoke({})
+        
+        # Очищаем результат от лишнего текста и получаем только ключевые слова
+        keywords = raw_keywords.strip()
+        # Удаляем возможные префиксы типа "Keywords:", "Answer:", etc.
+        keywords = re.sub(r'^[^:]*:\s*', '', keywords)
+        # Удаляем лишние пробелы и переносы строк
+        keywords = re.sub(r'\s+', ' ', keywords).strip()
+        
+        print(f"Вопрос: {question}")
+        print(f"Ключевые слова: {keywords}")
+        try:
+            all_keywords.update(keywords.split(", "))
+        except:
+            print(f"Ошибка при обновлении множества: {keywords}")
 
-    # ================================
-    _query = f"Технология: {technology}. {question}"
-    extract_serpapi_pdfs(_query)
-    
+        # ================================
+        _query = f"Технология: {technology}. {question}"
+        yandex_snippets = YandexSearch(_query).extract_yandex_snippets()
+        chunks.update(yandex_snippets)
 
+        # ================================
+        _query = f"Технология: {technology}. {question}"
+        extract_serpapi_pdfs(_query)
+        break
 
-# all_keywords = {"дегидрирование этилбензола", "палладий катализатор"}
+    # all_keywords = {"дегидрирование этилбензола", "палладий катализатор"}
 
-# for keyword in all_keywords:
-#     openalex_results = extract_openalex_pdfs(keyword)
+    # for keyword in all_keywords:
+    #     openalex_results = extract_openalex_pdfs(keyword)
+
+    return chunks, all_keywords
 
 
 
