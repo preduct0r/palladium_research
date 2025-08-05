@@ -5,6 +5,18 @@ import re
 from pathlib import Path
 from typing import List, Dict, Set
 
+# Импортируем SciHubSearcher для резервного скачивания
+try:
+    from .sci_hub import SciHubSearcher
+    SCIHUB_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    try:
+        from sci_hub import SciHubSearcher
+        SCIHUB_AVAILABLE = True
+    except (ImportError, ModuleNotFoundError):
+        print("Предупреждение: SciHub модуль не найден. Резервное скачивание недоступно.")
+        SCIHUB_AVAILABLE = False
+
 def search_openalex(query: str, per_page: int = 200, max_results: int = 1000) -> List[Dict]:
     """
     Поиск работ в OpenAlex по словосочетанию с дедубликацией.
@@ -84,6 +96,44 @@ def search_with_pyalex(query: str, max_results: int = 25) -> List[Dict]:
         print("Библиотека pyalex не установлена, используется базовый API...")
         return search_openalex(query, max_results=max_results)
     
+def download_pdf_from_url(pdf_url: str, filepath: Path, title: str) -> bool:
+    """
+    Скачивает PDF файл по URL и сохраняет в указанный путь.
+    
+    Returns:
+        bool: True если скачивание успешно, False иначе
+    """
+    try:
+        print(f"   URL: {pdf_url}")
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(pdf_url, headers=headers, timeout=30, stream=True)
+        response.raise_for_status()
+        
+        # Проверяем, что это действительно PDF
+        content_type = response.headers.get('content-type', '').lower()
+        if 'pdf' not in content_type and not pdf_url.lower().endswith('.pdf'):
+            print(f"   Предупреждение: файл может не быть PDF (content-type: {content_type})")
+        
+        # Сохраняем файл
+        with open(filepath, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        file_size = filepath.stat().st_size
+        print(f"   Сохранено: {filepath.name} ({file_size} байт)")
+        return True
+        
+    except requests.exceptions.RequestException as e:
+        print(f"   Ошибка при скачивании {pdf_url}: {e}")
+        return False
+    except Exception as e:
+        print(f"   Неожиданная ошибка: {e}")
+        return False
+
 def extract_openalex_pdfs(query, max_results=10):
     """Извлечение и скачивание PDF файлов из результатов поиска OpenAlex"""
     # Получаем результаты поиска
@@ -100,11 +150,22 @@ def extract_openalex_pdfs(query, max_results=10):
     
     downloaded_files = []
     
+    # Инициализируем SciHub если доступен
+    scihub_searcher = None
+    if SCIHUB_AVAILABLE:
+        try:
+            scihub_searcher = SciHubSearcher()
+            print("✅ SciHub резервное скачивание активировано")
+        except Exception as e:
+            print(f"⚠️ Не удалось инициализировать SciHub: {e}")
+            scihub_searcher = None
+    
     print(f"Найдено {len(results)} результатов OpenAlex")
     print(f"Начинаем поиск и скачивание PDF в папку: {output_dir}")
     
     for i, work in enumerate(results[:max_results], 1):
         title = work.get('title', f'document_{i}')
+        doi = work.get('doi', '')
         pdf_urls = []
         
         # Ищем PDF ссылки в разных местах
@@ -133,70 +194,79 @@ def extract_openalex_pdfs(query, max_results=10):
         # Убираем дубликаты
         pdf_urls = list(set(pdf_urls))
         
-        if not pdf_urls:
-            print(f"{i}. Пропускаем: нет PDF ссылок для '{title}'")
-            continue
+        # Подготавливаем имя файла
+        safe_filename = re.sub(r'[^\w\s-]', '', title).strip()
+        safe_filename = re.sub(r'[-\s]+', '_', safe_filename)[:100]  # Ограничиваем длину
+        filename = f"{i:02d}_{safe_filename}.pdf"
+        filepath = output_dir / filename
         
-        # Пробуем скачать первую доступную PDF ссылку
+        print(f"{i}. Скачиваем: {title}")
+        
+        # Пробуем скачать из OpenAlex PDF ссылок
         downloaded = False
-        for pdf_url in pdf_urls:
-            try:
-                # Очищаем название файла от недопустимых символов
-                safe_filename = re.sub(r'[^\w\s-]', '', title).strip()
-                safe_filename = re.sub(r'[-\s]+', '_', safe_filename)[:100]  # Ограничиваем длину
-                
-                # Генерируем имя файла
-                filename = f"{i:02d}_{safe_filename}.pdf"
-                filepath = output_dir / filename
-                
-                print(f"{i}. Скачиваем: {title}")
-                print(f"   URL: {pdf_url}")
-                
-                # Скачиваем PDF файл
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
-                
-                response = requests.get(pdf_url, headers=headers, timeout=30, stream=True)
-                response.raise_for_status()
-                
-                # Проверяем, что это действительно PDF
-                content_type = response.headers.get('content-type', '').lower()
-                if 'pdf' not in content_type and not pdf_url.lower().endswith('.pdf'):
-                    print(f"   Предупреждение: файл может не быть PDF (content-type: {content_type})")
-                
-                # Сохраняем файл
-                with open(filepath, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                
-                file_size = filepath.stat().st_size
-                print(f"   Сохранено: {filename} ({file_size} байт)")
-                
-                downloaded_files.append({
-                    'title': title,
-                    'filename': filename,
-                    'filepath': str(filepath),
-                    'url': pdf_url,
-                    'size': file_size,
-                    'doi': work.get('doi', ''),
-                    'year': work.get('publication_year', '')
-                })
-                
-                downloaded = True
-                break  # Успешно скачали, переходим к следующему
-                
-            except requests.exceptions.RequestException as e:
-                print(f"   Ошибка при скачивании {pdf_url}: {e}")
-                continue  # Пробуем следующую ссылку
-            except Exception as e:
-                print(f"   Неожиданная ошибка: {e}")
-                continue
+        if pdf_urls:
+            for pdf_url in pdf_urls:
+                if download_pdf_from_url(pdf_url, filepath, title):
+                    downloaded_files.append({
+                        'title': title,
+                        'filename': filename,
+                        'filepath': str(filepath),
+                        'url': pdf_url,
+                        'size': filepath.stat().st_size,
+                        'doi': doi,
+                        'year': work.get('publication_year', ''),
+                        'source': 'openalex'
+                    })
+                    downloaded = True
+                    break  # Успешно скачали, переходим к следующему
         
+        # Если OpenAlex не сработал, пробуем SciHub (если есть DOI)
+        if not downloaded and doi and scihub_searcher:
+            print(f"   OpenAlex не сработал, пробуем SciHub для DOI: {doi}")
+            try:
+                scihub_result = scihub_searcher.search_paper_by_doi(doi)
+                
+                if scihub_result.get('status') == 'success' and scihub_result.get('pdf_url'):
+                    print(f"   ✅ SciHub нашел PDF")
+                    if download_pdf_from_url(scihub_result['pdf_url'], filepath, title):
+                        downloaded_files.append({
+                            'title': title,
+                            'filename': filename,
+                            'filepath': str(filepath),
+                            'url': scihub_result['pdf_url'],
+                            'size': filepath.stat().st_size,
+                            'doi': doi,
+                            'year': work.get('publication_year', ''),
+                            'source': 'scihub'
+                        })
+                        downloaded = True
+                    else:
+                        print(f"   ❌ Не удалось скачать PDF из SciHub")
+                else:
+                    print(f"   ❌ SciHub не нашел PDF для этого DOI")
+                    
+            except Exception as e:
+                print(f"   ❌ Ошибка при работе с SciHub: {e}")
+        
+        # Финальная проверка
         if not downloaded:
-            print(f"   Не удалось скачать ни одну из {len(pdf_urls)} PDF ссылок")
+            if not pdf_urls and not doi:
+                print(f"   ❌ Пропускаем: нет PDF ссылок и DOI для '{title}'")
+            elif not pdf_urls:
+                print(f"   ❌ Пропускаем: нет PDF ссылок в OpenAlex")
+            elif not doi:
+                print(f"   ❌ Не удалось скачать из OpenAlex, нет DOI для SciHub")
+            else:
+                print(f"   ❌ Не удалось скачать ни из OpenAlex, ни из SciHub")
     
     print(f"\nСкачивание завершено. Успешно загружено: {len(downloaded_files)} файлов")
+    
+    # Статистика по источникам
+    openalex_count = sum(1 for f in downloaded_files if f.get('source') == 'openalex')
+    scihub_count = sum(1 for f in downloaded_files if f.get('source') == 'scihub')
+    print(f"  - OpenAlex: {openalex_count} файлов")
+    print(f"  - SciHub: {scihub_count} файлов")
+    
     return downloaded_files
 
 def main():
