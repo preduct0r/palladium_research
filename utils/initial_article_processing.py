@@ -30,6 +30,9 @@ LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false").lower() in ("t
 OPENAI_API_KEY = os.getenv("YANDEX_API_KEY")
 folder_id = os.getenv("YANDEX_FOLDER_ID")
 
+embedding_model = "intfloat/multilingual-e5-large-instruct"
+embedder = OpenAIEmbeddings(model=embedding_model, base_url="http://localhost:8080/v1",api_key="EMPTY")
+
 # ================================
 # Get chunks with unstructured
 def get_article_chunks(file_path):
@@ -104,7 +107,7 @@ def get_article_vectorstore(texts, text_summaries, tables, table_summaries):
     # ================================
     # Load data and summaries to vectorstore
     # The vectorstore to use to index the child chunks
-    vectorstore = Chroma(collection_name="multi_modal_rag", embedding_function=OpenAIEmbeddings())
+    vectorstore = Chroma(collection_name="multi_modal_rag", embedding_function=embedder)
 
     # The storage layer for the parent documents
     store = InMemoryStore()
