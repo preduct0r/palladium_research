@@ -13,9 +13,17 @@ SEARCH_API_GENERATIVE = os.getenv("YANDEX_SEARCH_API_GENERATIVE")
 
 def get_guery(question, article_name):
     answers_dir = Path("data") / article_name / "answers"
-    with open(answers_dir / "technology.txt", encoding='utf-8') as f:
-        technology = f.read()
-    query = question.replace(" из статьи", "").replace("подхода", technology.lower()).replace("подходу", technology.lower()).replace("подходе", technology.lower())
+    technology_file = answers_dir / "technology.txt"
+    
+    # Проверяем существование файла technology.txt
+    if technology_file.exists():
+        with open(technology_file, encoding='utf-8') as f:
+            technology = f.read()
+        query = question.replace(" из статьи", "").replace("подхода", technology.lower()).replace("подходу", technology.lower()).replace("подходе", technology.lower())
+    else:
+        # Если файл не существует, возвращаем исходный вопрос без замен
+        query = question
+    
     return query
 
 

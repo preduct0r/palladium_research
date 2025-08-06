@@ -57,6 +57,7 @@ chain_with_sources = {
     "context": article_retriever | RunnableLambda(parse_docs),
     "neuro": RunnableLambda(get_neuro_with_query),
     "question": RunnablePassthrough(),
+    "article_name": RunnableLambda(lambda _: article_name),
 } | RunnablePassthrough().assign(
     response=(
         RunnableLambda(build_prompt3)
@@ -74,7 +75,7 @@ questions_and_files = [
     ("Какова основная идея изложенна в статье?", "idea.txt"),
     ("Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'", "tematic.txt"),
     ("Какое потенциальное потребление палладия при применении подхода из статьи в кг? Если в статье нет информации, попробуй поразмышлять на основе знаний, которые у тебя есть. Выведи только вывод, ничего больше", "potential_consumption.txt"),
-    ("Какой уровень развития подхода из статьи? Выведи только вывод, ничего больше", "technology_development_level.txt"),
+    ("Какой уровень развития подхода из статьи?", "technology_development_level.txt"),
     ("Какова новизна применения палладия при применении подхода из статьи?", "palladium_novelty.txt"),
     ("Какова научно-техническая реализуемость внедрения палладия при применении подхода из статьи?", "technical_feasibility.txt"),
     ("Какой коммерческий потенциал внедрения палладия при применении подхода из статьи?", "commercial_potential.txt"),
