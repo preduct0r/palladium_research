@@ -82,5 +82,3 @@ for question, filename in questions_and_files:
         print("Page number: ", text.metadata.page_number)
         print("\n" + "-"*50 + "\n")
 
-
-
