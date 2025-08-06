@@ -15,7 +15,7 @@ def get_guery(question, article_name):
     answers_dir = Path("data") / article_name / "answers"
     with open(answers_dir / "technology.txt", encoding='utf-8') as f:
         technology = f.read()
-    query = question.replace("технологии из статьи", technology.lower())
+    query = question.replace(" из статьи", "").replace("подхода", technology.lower()).replace("подходу", technology.lower()).replace("подходе", technology.lower())
     return query
 
 
