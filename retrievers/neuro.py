@@ -1,7 +1,7 @@
 import requests
 from dotenv import load_dotenv, find_dotenv
 import os
-
+from pathlib import Path
 # Load environment variables from .env file
 load_dotenv(find_dotenv())
 
@@ -9,6 +9,14 @@ load_dotenv(find_dotenv())
 FOLDER_ID = os.getenv("YANDEX_FOLDER_ID")
 API_TOKEN = os.getenv("YANDEX_API_TOKEN")
 SEARCH_API_GENERATIVE = os.getenv("YANDEX_SEARCH_API_GENERATIVE")
+
+
+def get_guery(question, article_name):
+    answers_dir = Path("data") / article_name / "answers"
+    with open(answers_dir / "technology.txt", encoding='utf-8') as f:
+        technology = f.read()
+    query = question.replace("<технология>", technology).lower()
+    return query
 
 
 def get_neuro_response(user_query):

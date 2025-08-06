@@ -15,9 +15,10 @@ from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from unstructured.partition.pdf import partition_pdf
 from pathlib import Path
 
-from utils.rag import parse_docs, build_prompt
+from utils.rag import parse_docs, build_prompt3
 from utils.initial_article_processing import get_article_chunks, summarize_article_data, get_article_vectorstore, get_article_title_info
 from utils.difficult_question_processing import download_relevant_pdfs_and_chunks, get_relevant_data_chunks, get_relevant_data_vectorstore
+from retrievers.neuro import get_neuro_response, get_guery
 from dotenv import load_dotenv, find_dotenv
 # ================================
 # Load environment variables from the nearest .env file
@@ -34,6 +35,15 @@ article_path=os.getenv("ARTICLE_PATH")
 article_name = Path(article_path).stem.replace(" ", "_")
 
 # ================================
+# Создаем функцию-обертку для нейро запросов
+def get_neuro_with_query(question):
+    """
+    Обертка для get_neuro_response, которая использует get_guery для обработки вопроса
+    """
+    processed_query = get_guery(question, article_name)
+    return get_neuro_response(processed_query)
+
+# ================================
 # Извлечение информации о статье из OpenAlex
 print("Извлекаем информацию о статье из OpenAlex...")
 get_article_title_info(article_name)
@@ -45,10 +55,11 @@ article_retriever = get_article_vectorstore(texts, text_summaries, tables, table
 
 chain_with_sources = {
     "context": article_retriever | RunnableLambda(parse_docs),
+    "neuro": RunnableLambda(get_neuro_with_query),
     "question": RunnablePassthrough(),
 } | RunnablePassthrough().assign(
     response=(
-        RunnableLambda(build_prompt)
+        RunnableLambda(build_prompt3)
         | model
         | StrOutputParser()
     )
@@ -59,10 +70,10 @@ answers_dir = Path("data") / article_name / "answers"
 answers_dir.mkdir(parents=True, exist_ok=True)
 
 questions_and_files = [   
-    ("Напиши одним предложением длинной не боллее 15 слов о какой промышленной технологии идет речь в этой статье. Выведи только название технологии", "technology.txt"),
-    ("Какова основная идея статьи? /no_think", "idea.txt"),
-    ("Какое направление (тематика) у этой статьи? /no_think", "tematic.txt"),
-    ("Потенциальное потребление палладия согласно статье, кг", "potential_consumption.txt"),
+    ("Напиши одним предложением о какой промышленной технологии идет речь в этой статье. Выведи только название технологии, ничего больше, до 15 слов", "technology.txt"),
+    ("Какова основная идея изложенна в статье?", "idea.txt"),
+    ("Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'", "tematic.txt"),
+    ("Какое потенциальное потребление палладия при использовании технологии из статьи в кг? Если в статье нет информации, попробуй поразмышлять на основе знаний, которые у тебя есть", "potential_consumption.txt"),
 ]
 
 for question, filename in questions_and_files:
