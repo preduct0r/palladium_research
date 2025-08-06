@@ -2,6 +2,7 @@ import requests
 import json
 from dotenv import load_dotenv
 import os
+import re
 import time
 from urllib3.exceptions import NewConnectionError
 from requests.exceptions import ConnectionError, Timeout, RequestException
@@ -86,6 +87,65 @@ def yandex_gpt_request(prompt, model="yandexgpt", temperature=0.6, max_tokens=20
             return None
 
     return None
+
+
+def translate_keywords(keywords):
+    """
+    Переводит список ключевых слов с русского языка на английский с помощью YandexGPT
+    
+    Args:
+        keywords (list): Список ключевых слов/словосочетаний на русском языке
+        
+    Returns:
+        list: Список переведенных ключевых слов на английском языке
+    """
+    if not keywords:
+        return []
+    
+    # Объединяем ключевые слова в строку для перевода
+    keywords_text = ", ".join(keywords)
+    
+    # Создаем промпт для перевода
+    prompt = f"""Переведи следующие ключевые слова и словосочетания с русского языка на английский язык. 
+Сохрани тот же формат - через запятую и пробел. 
+Переводи точно и кратко, используя наиболее подходящие английские термины.
+
+Ключевые слова: {keywords_text}
+
+Переведенные ключевые слова:"""
+    
+    try:
+        # Получаем перевод от YandexGPT
+        translated_response = yandex_gpt_request(prompt, temperature=0.3, max_tokens=1000)
+        
+        if translated_response:
+            # Очищаем ответ от возможных префиксов
+            translated_text = translated_response.strip()
+            translated_text = re.sub(r'^[^:]*:\s*', '', translated_text)
+            translated_text = re.sub(r'\s+', ' ', translated_text).strip()
+            
+            # Разбиваем на список
+            translated_keywords = [kw.strip() for kw in translated_text.split(",") if kw.strip()]
+            
+            # Дополнительная очистка от знаков препинания в конце
+            cleaned_keywords = []
+            for kw in translated_keywords:
+                # Убираем точки, запятые и другие знаки препинания в конце
+                cleaned_kw = re.sub(r'[.,;:!?]+$', '', kw.strip())
+                if cleaned_kw:
+                    cleaned_keywords.append(cleaned_kw)
+            
+            print(f"Исходные ключевые слова: {keywords}")
+            print(f"Переведенные ключевые слова: {cleaned_keywords}")
+            
+            return cleaned_keywords
+        else:
+            print("Ошибка при переводе ключевых слов, возвращаем исходный список")
+            return keywords
+            
+    except Exception as e:
+        print(f"Ошибка при переводе ключевых слов: {e}")
+        return keywords
 
 
 if __name__ == "__main__":
