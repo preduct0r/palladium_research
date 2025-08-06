@@ -9,7 +9,7 @@ from langchain_core.prompts import ChatPromptTemplate
 import re
 from langchain.schema.document import Document
 
-
+from utils.yandex_gpt import yandex_gpt_request
 from retrievers._serpapi import extract_serpapi_pdfs
 from retrievers.yandex_search import YandexSearch
 from retrievers.openalex import extract_openalex_pdfs
@@ -35,6 +35,66 @@ with open("prompts/get_keywords.txt") as f:
 with open("prompts/get_search_query.txt") as f:
     search_query_template = f.read()
 model = ChatOpenAI(temperature=0.5, model_name="gpt-4o")
+
+
+
+def translate_keywords(keywords):
+    """
+    Переводит список ключевых слов с русского языка на английский с помощью YandexGPT
+    
+    Args:
+        keywords (list): Список ключевых слов/словосочетаний на русском языке
+        
+    Returns:
+        list: Список переведенных ключевых слов на английском языке
+    """
+    if not keywords:
+        return []
+    
+    # Объединяем ключевые слова в строку для перевода
+    keywords_text = ", ".join(keywords)
+    
+    # Создаем промпт для перевода
+    prompt = f"""Переведи следующие ключевые слова и словосочетания с русского языка на английский язык. 
+Сохрани тот же формат - через запятую и пробел. 
+Переводи точно и кратко, используя наиболее подходящие английские термины.
+
+Ключевые слова: {keywords_text}
+
+Переведенные ключевые слова:"""
+    
+    try:
+        # Получаем перевод от YandexGPT
+        translated_response = yandex_gpt_request(prompt, temperature=0.3, max_tokens=1000)
+        
+        if translated_response:
+            # Очищаем ответ от возможных префиксов
+            translated_text = translated_response.strip()
+            translated_text = re.sub(r'^[^:]*:\s*', '', translated_text)
+            translated_text = re.sub(r'\s+', ' ', translated_text).strip()
+            
+            # Разбиваем на список
+            translated_keywords = [kw.strip() for kw in translated_text.split(",") if kw.strip()]
+            
+            # Дополнительная очистка от знаков препинания в конце
+            cleaned_keywords = []
+            for kw in translated_keywords:
+                # Убираем точки, запятые и другие знаки препинания в конце
+                cleaned_kw = re.sub(r'[.,;:!?]+$', '', kw.strip())
+                if cleaned_kw:
+                    cleaned_keywords.append(cleaned_kw)
+            
+            print(f"Исходные ключевые слова: {keywords}")
+            print(f"Переведенные ключевые слова: {cleaned_keywords}")
+            
+            return cleaned_keywords
+        else:
+            print("Ошибка при переводе ключевых слов, возвращаем исходный список")
+            return keywords
+            
+    except Exception as e:
+        print(f"Ошибка при переводе ключевых слов: {e}")
+        return keywords
 
 
 def download_relevant_pdfs(questions_demands_search, article_name):
@@ -80,10 +140,19 @@ def download_relevant_pdfs(questions_demands_search, article_name):
         _query = f"Технология: {technology}. {question}"
         extract_serpapi_pdfs(_query, article_name=article_name)
 
-    all_keywords = {"дегидрирование этилбензола", "палладий катализатор"}
 
     for keyword in all_keywords:
         openalex_results = extract_openalex_pdfs(keyword, article_name=article_name)
+
+    # Переводим ключевые слова на английский для более эффективного поиска в OpenAlex
+    print("\n=== Перевод ключевых слов для поиска в OpenAlex ===")
+    translated_keywords = translate_keywords(list(all_keywords))
+    
+    # Поиск по переведенным ключевым словам в OpenAlex
+    for translated_keyword in translated_keywords:
+        if translated_keyword and translated_keyword.strip():
+            print(f"Поиск в OpenAlex по переведенному ключевому слову: {translated_keyword}")
+            openalex_results = extract_openalex_pdfs(translated_keyword, article_name=article_name)
 
     return chunks, all_keywords
 

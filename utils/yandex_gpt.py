@@ -3,7 +3,7 @@ import json
 from dotenv import load_dotenv
 import os
 import time
-from urllib3.exceptions import NameResolutionError
+from urllib3.exceptions import NewConnectionError
 from requests.exceptions import ConnectionError, Timeout, RequestException
 
 # Загружаем переменные окружения
@@ -61,7 +61,7 @@ def yandex_gpt_request(prompt, model="yandexgpt", temperature=0.6, max_tokens=20
                     continue
                 return None
                 
-        except (ConnectionError, NameResolutionError, Timeout) as e:
+        except (ConnectionError, NewConnectionError, Timeout) as e:
             print(f"Сетевая ошибка на попытке {attempt + 1}: {e}")
             if attempt < max_retries - 1:
                 wait_time = (attempt + 1) * 2  # Экспоненциальная задержка
