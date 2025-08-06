@@ -133,7 +133,7 @@ def download_pdf_from_url(pdf_url: str, filepath: Path, title: str) -> bool:
         print(f"   Неожиданная ошибка: {e}")
         return False
 
-def extract_openalex_pdfs(query, max_results=10, article_name="default"):
+def extract_openalex_pdfs(query, max_results=10, article_name="default", seen_titles=set()):
     """Извлечение и скачивание PDF файлов из результатов поиска OpenAlex"""
     # Получаем результаты поиска
     results = search_with_pyalex(query, max_results)
@@ -164,6 +164,9 @@ def extract_openalex_pdfs(query, max_results=10, article_name="default"):
     
     for i, work in enumerate(results[:max_results], 1):
         title = work.get('title', f'document_{i}')
+        if title.lower() in seen_titles:
+            continue
+        seen_titles.add(title.lower())
         doi = work.get('doi', '')
         pdf_urls = []
         
