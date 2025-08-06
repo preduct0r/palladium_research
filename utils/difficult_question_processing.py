@@ -76,33 +76,25 @@ def download_relevant_pdfs(questions_demands_search, article_name):
         except:
             print(f"Ошибка при обновлении множества: {keywords}")
 
-        # ================================
-        # query = f"Технология: {technology}. {question}"
-        query = question.replace("<технология>", technology).lower()
-        yandex_snippets = YandexSearch(query).extract_yandex_snippets()
-        chunks.update(yandex_snippets)
+        # # ================================
+        # # query = f"Технология: {technology}. {question}"
+        # query = question.replace("<технология>", technology).lower()
+        # yandex_snippets = YandexSearch(query).extract_yandex_snippets()
+        # chunks.update(yandex_snippets)
 
         # ================================
         # extract_serpapi_pdfs(query, article_name=article_name)
 
-    all_keywords = [x for x in list(all_keywords) if len(x.split(" "))>1] + ["палладий"]
+    all_keywords = set([x for x in list(all_keywords) if len(x.split(" "))>1] + ["палладий"])
 
     # Переводим ключевые слова на английский для более эффективного поиска в OpenAlex
     print("\n=== Перевод ключевых слов для поиска в OpenAlex ===")
     translated_keywords = translate_keywords(list(all_keywords))
-    
 
     seen_titles = set()
-    for keyword in all_keywords + translated_keywords:
+    for keyword in all_keywords.union(set(translated_keywords)):
         openalex_results = extract_openalex_pdfs(keyword, article_name=article_name, seen_titles=seen_titles)
 
-
-    
-    # Поиск по переведенным ключевым словам в OpenAlex
-    for translated_keyword in translated_keywords:
-        if translated_keyword and translated_keyword.strip():
-            print(f"Поиск в OpenAlex по переведенному ключевому слову: {translated_keyword}")
-            openalex_results = extract_openalex_pdfs(translated_keyword, article_name=article_name)
 
     return chunks, all_keywords
 
