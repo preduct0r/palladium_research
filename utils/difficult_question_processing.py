@@ -108,9 +108,9 @@ def get_relevant_data_chunks(file_dir):
         print(f"Обработка файла: {pdf_file}")
         try:
             chunks = partition_pdf(
-                filename=str(pdf_file),
-                infer_table_structure=False,           # disable table extraction
-                strategy="hi_res",                     # mandatory for better text extraction
+                filename=str(pdf_file),         # disable table extraction
+                strategy="ocr_only",            # mandatory for better text extraction
+                languages=["ru", "en"],                   
 
                 # Remove image extraction parameters
                 # extract_image_block_types=["Image"],   # disabled - no images
@@ -119,7 +119,6 @@ def get_relevant_data_chunks(file_dir):
                 chunking_strategy="by_title",          # or 'basic'
                 max_characters=1000,                  # defaults to 500
                 combine_text_under_n_chars=500,       # defaults to 0
-                new_after_n_chars=6000,
 
                 # extract_images_in_pdf=True,          # deprecated
             )
