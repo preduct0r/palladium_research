@@ -18,7 +18,7 @@ from unstructured.partition.pdf import partition_pdf
 from langchain.embeddings import OpenAIEmbeddings
 
 from utils.yandex_gpt import translate_keywords
-
+from retrievers.neuro import get_neuro_response
 load_dotenv()
 
 # GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -42,7 +42,7 @@ model = ChatOpenAI(base_url="https://llm.api.cloud.yandex.net/v1",  temperature=
 
 
 
-def download_relevant_pdfs(questions_demands_search, article_name):
+def download_relevant_pdfs_and_chunks(questions_demands_search, article_name):
     # Читаем ответы из новых файлов
     answers_dir = Path("data") / article_name / "answers"
     
@@ -78,12 +78,16 @@ def download_relevant_pdfs(questions_demands_search, article_name):
 
         # # ================================
         # # query = f"Технология: {technology}. {question}"
-        # query = question.replace("<технология>", technology).lower()
+        query = question.replace("<технология>", technology).lower()
         # yandex_snippets = YandexSearch(query).extract_yandex_snippets()
         # chunks.update(yandex_snippets)
 
         # ================================
         # extract_serpapi_pdfs(query, article_name=article_name)
+
+        # ================================
+        neuro_response = get_neuro_response(query)
+        chunks.update(neuro_response[0]['message']['content'])
 
     all_keywords = set([x for x in list(all_keywords) if len(x.split(" "))>1] + ["палладий"])
 

@@ -17,7 +17,7 @@ from pathlib import Path
 
 from utils.rag import parse_docs, build_prompt
 from utils.initial_article_processing import get_article_chunks, summarize_article_data, get_article_vectorstore, get_article_title_info
-from utils.difficult_question_processing import download_relevant_pdfs, get_relevant_data_chunks, get_relevant_data_vectorstore
+from utils.difficult_question_processing import download_relevant_pdfs_and_chunks, get_relevant_data_chunks, get_relevant_data_vectorstore
 from dotenv import load_dotenv, find_dotenv
 # ================================
 # Load environment variables from the nearest .env file
@@ -102,7 +102,7 @@ questions_demands_search = [
     # "Какова предполагаемая длительность разработки <технология>?",
 ]
 
-yandex_chunks, all_keywords = download_relevant_pdfs(questions_demands_search, article_name)
+yandex_chunks, all_keywords = download_relevant_pdfs_and_chunks(questions_demands_search, article_name)
 
 # Путь к папке с данными статьи
 data_dir = Path("data") / article_name
