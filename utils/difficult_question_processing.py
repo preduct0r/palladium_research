@@ -15,6 +15,9 @@ from retrievers.yandex_search import YandexSearch
 from retrievers.openalex import extract_openalex_pdfs
 from pathlib import Path
 from unstructured.partition.pdf import partition_pdf
+from langchain.embeddings import OpenAIEmbeddings
+
+from utils.yandex_gpt import translate_keywords
 
 load_dotenv()
 
@@ -26,9 +29,10 @@ LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false").lower() in ("t
 OPENAI_API_KEY = os.getenv("YANDEX_API_KEY")
 folder_id = os.getenv("YANDEX_FOLDER_ID")
 
-_embeddings = GigaChatEmbeddings(model = "EmbeddingsGigaR",credentials= os.environ.get("GIGACHAT_CREDENTIALS"),scope =os.environ.get("GIGACHAT_API_CORP") , verify_ssl_certs = False)
+# _embeddings = GigaChatEmbeddings(model = "EmbeddingsGigaR",credentials= os.environ.get("GIGACHAT_CREDENTIALS"),scope =os.environ.get("GIGACHAT_API_CORP") , verify_ssl_certs = False)
+embedder = OpenAIEmbeddings(model=os.getenv("EMBEDDING_MODEL"), base_url=os.getenv("EMBEDDING_BASE_URL") ,api_key=os.getenv("EMBEDDING_API_KEY"))
 
-chroma_vector_store = Chroma(collection_name="relevant_data", embedding_function=_embeddings)
+chroma_vector_store = Chroma(collection_name="relevant_data", embedding_function=embedder)
 
 with open("prompts/get_keywords.txt") as f:
     serp_prompt_template = f.read()
@@ -36,65 +40,6 @@ with open("prompts/get_search_query.txt") as f:
     search_query_template = f.read()
 model = ChatOpenAI(base_url="https://llm.api.cloud.yandex.net/v1",  temperature=0.5, model_name=f"gpt://{folder_id}/qwen3-235b-a22b-fp8/latest")
 
-
-
-def translate_keywords(keywords):
-    """
-    Переводит список ключевых слов с русского языка на английский с помощью YandexGPT
-    
-    Args:
-        keywords (list): Список ключевых слов/словосочетаний на русском языке
-        
-    Returns:
-        list: Список переведенных ключевых слов на английском языке
-    """
-    if not keywords:
-        return []
-    
-    # Объединяем ключевые слова в строку для перевода
-    keywords_text = ", ".join(keywords)
-    
-    # Создаем промпт для перевода
-    prompt = f"""Переведи следующие ключевые слова и словосочетания с русского языка на английский язык. 
-Сохрани тот же формат - через запятую и пробел. 
-Переводи точно и кратко, используя наиболее подходящие английские термины.
-
-Ключевые слова: {keywords_text}
-
-Переведенные ключевые слова:"""
-    
-    try:
-        # Получаем перевод от YandexGPT
-        translated_response = yandex_gpt_request(prompt, temperature=0.3, max_tokens=1000)
-        
-        if translated_response:
-            # Очищаем ответ от возможных префиксов
-            translated_text = translated_response.strip()
-            translated_text = re.sub(r'^[^:]*:\s*', '', translated_text)
-            translated_text = re.sub(r'\s+', ' ', translated_text).strip()
-            
-            # Разбиваем на список
-            translated_keywords = [kw.strip() for kw in translated_text.split(",") if kw.strip()]
-            
-            # Дополнительная очистка от знаков препинания в конце
-            cleaned_keywords = []
-            for kw in translated_keywords:
-                # Убираем точки, запятые и другие знаки препинания в конце
-                cleaned_kw = re.sub(r'[.,;:!?]+$', '', kw.strip())
-                if cleaned_kw:
-                    cleaned_keywords.append(cleaned_kw)
-            
-            print(f"Исходные ключевые слова: {keywords}")
-            print(f"Переведенные ключевые слова: {cleaned_keywords}")
-            
-            return cleaned_keywords
-        else:
-            print("Ошибка при переводе ключевых слов, возвращаем исходный список")
-            return keywords
-            
-    except Exception as e:
-        print(f"Ошибка при переводе ключевых слов: {e}")
-        return keywords
 
 
 def download_relevant_pdfs(questions_demands_search, article_name):
@@ -132,21 +77,26 @@ def download_relevant_pdfs(questions_demands_search, article_name):
             print(f"Ошибка при обновлении множества: {keywords}")
 
         # ================================
-        _query = f"Технология: {technology}. {question}"
-        yandex_snippets = YandexSearch(_query).extract_yandex_snippets()
+        # query = f"Технология: {technology}. {question}"
+        query = question.replace("<технология>", technology).lower()
+        yandex_snippets = YandexSearch(query).extract_yandex_snippets()
         chunks.update(yandex_snippets)
 
         # ================================
-        _query = f"Технология: {technology}. {question}"
-        extract_serpapi_pdfs(_query, article_name=article_name)
+        # extract_serpapi_pdfs(query, article_name=article_name)
 
-
-    for keyword in all_keywords:
-        openalex_results = extract_openalex_pdfs(keyword, article_name=article_name)
+    all_keywords = [x for x in list(all_keywords) if len(x.split(" "))>1] + ["палладий"]
 
     # Переводим ключевые слова на английский для более эффективного поиска в OpenAlex
     print("\n=== Перевод ключевых слов для поиска в OpenAlex ===")
     translated_keywords = translate_keywords(list(all_keywords))
+    
+
+    seen_titles = set()
+    for keyword in all_keywords + translated_keywords:
+        openalex_results = extract_openalex_pdfs(keyword, article_name=article_name, seen_titles=seen_titles)
+
+
     
     # Поиск по переведенным ключевым словам в OpenAlex
     for translated_keyword in translated_keywords:
@@ -220,7 +170,7 @@ def get_relevant_data_vectorstore(texts):
     """
     # ================================
     # Create vectorstore for full text chunks
-    vectorstore = Chroma(collection_name="relevant_data", embedding_function=_embeddings)
+    vectorstore = Chroma(collection_name="relevant_data", embedding_function=embedder)
     
     # Convert text chunks to Document objects
     documents = []

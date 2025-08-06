@@ -19,7 +19,7 @@ from pathlib import Path
 
 from utils.rag import parse_docs, build_prompt
 
-
+load_dotenv()
 
 
 # GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -30,8 +30,7 @@ LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false").lower() in ("t
 OPENAI_API_KEY = os.getenv("YANDEX_API_KEY")
 folder_id = os.getenv("YANDEX_FOLDER_ID")
 
-embedding_model = "intfloat/multilingual-e5-large-instruct"
-embedder = OpenAIEmbeddings(model=embedding_model, base_url="http://localhost:8080/v1",api_key="EMPTY")
+embedder = OpenAIEmbeddings(model=os.getenv("EMBEDDING_MODEL"), base_url=os.getenv("EMBEDDING_BASE_URL") ,api_key=os.getenv("EMBEDDING_API_KEY"))
 
 # ================================
 # Get chunks with unstructured
@@ -40,7 +39,8 @@ def get_article_chunks(file_path):
     chunks = partition_pdf(
         filename=file_path,
         infer_table_structure=True,            # extract tables
-        strategy="hi_res",                     # mandatory to infer tables
+        strategy="hi_res",  
+        languages=["ru", "en"],                       # mandatory to infer tables
 
         extract_image_block_types=["Image"],   # Add 'Table' to list to extract image of tables
         # image_output_dir_path=output_path,   # if None, images and tables will saved in base64

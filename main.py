@@ -36,51 +36,51 @@ article_name = Path(article_path).stem.replace(" ", "_")
 # ================================
 # Извлечение информации о статье из OpenAlex
 print("Извлекаем информацию о статье из OpenAlex...")
-get_article_title_info(article_name)
+# get_article_title_info(article_name)
 
-texts, tables = get_article_chunks(article_path)
+# texts, tables = get_article_chunks(article_path)
 
-text_summaries, table_summaries = summarize_article_data(texts, tables)
-article_retriever = get_article_vectorstore(texts, text_summaries, tables, table_summaries)
+# text_summaries, table_summaries = summarize_article_data(texts, tables)
+# article_retriever = get_article_vectorstore(texts, text_summaries, tables, table_summaries)
 
-chain_with_sources = {
-    "context": article_retriever | RunnableLambda(parse_docs),
-    "question": RunnablePassthrough(),
-} | RunnablePassthrough().assign(
-    response=(
-        RunnableLambda(build_prompt)
-        | model
-        | StrOutputParser()
-    )
-)
+# chain_with_sources = {
+#     "context": article_retriever | RunnableLambda(parse_docs),
+#     "question": RunnablePassthrough(),
+# } | RunnablePassthrough().assign(
+#     response=(
+#         RunnableLambda(build_prompt)
+#         | model
+#         | StrOutputParser()
+#     )
+# )
 
-# Создаем папку для сохранения ответов
-answers_dir = Path("data") / article_name / "answers"
-answers_dir.mkdir(parents=True, exist_ok=True)
+# # Создаем папку для сохранения ответов
+# answers_dir = Path("data") / article_name / "answers"
+# answers_dir.mkdir(parents=True, exist_ok=True)
 
-questions_and_files = [   
-    ("Напиши одним предложением длинной не боллее 15 слов о какой промышленной технологии идет речь в этой статье. Выведи только название технологии", "technology.txt"),
-    ("Какова основная идея статьи?", "idea.txt"),
-    ("Какое направление (тематика) у этой статьи?", "tematic.txt"),
-    ("Потенциальное потребление палладия согласно статье, кг", "potential_consumption.txt"),
-]
+# questions_and_files = [   
+#     ("Напиши одним предложением длинной не боллее 15 слов о какой промышленной технологии идет речь в этой статье. Выведи только название технологии", "technology.txt"),
+#     ("Какова основная идея статьи? /no_think", "idea.txt"),
+#     ("Какое направление (тематика) у этой статьи? /no_think", "tematic.txt"),
+#     ("Потенциальное потребление палладия согласно статье, кг", "potential_consumption.txt"),
+# ]
 
-for question, filename in questions_and_files:
-    response = chain_with_sources.invoke(question)
+# for question, filename in questions_and_files:
+#     response = chain_with_sources.invoke(question)
 
-    print("Response:", response['response'])
+#     print("Response:", response['response'])
     
-    # Сохраняем ответ в файл
-    file_path = answers_dir / filename
-    with open(file_path, 'w', encoding='utf-8') as f:
-        f.write(response['response'])
-    print(f"Ответ сохранен в: {file_path}")
+#     # Сохраняем ответ в файл
+#     file_path = answers_dir / filename
+#     with open(file_path, 'w', encoding='utf-8') as f:
+#         f.write(response['response'])
+#     print(f"Ответ сохранен в: {file_path}")
 
-    print("\n\nContext:")
-    for text in response['context']['texts']:
-        print(text.text)
-        print("Page number: ", text.metadata.page_number)
-        print("\n" + "-"*50 + "\n")
+#     print("\n\nContext:")
+#     for text in response['context']['texts']:
+#         print(text.text)
+#         print("Page number: ", text.metadata.page_number)
+#         print("\n" + "-"*50 + "\n")
 
 
 
