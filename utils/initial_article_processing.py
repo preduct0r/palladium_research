@@ -21,13 +21,14 @@ from utils.rag import parse_docs, build_prompt
 
 
 
-# Initialize environment variables from .env
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 # GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 # Convert tracing flag to boolean
 LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false").lower() in ("true", "1", "yes")
-
+# Initialize environment variables from .env
+OPENAI_API_KEY = os.getenv("YANDEX_API_KEY")
+folder_id = os.getenv("YANDEX_FOLDER_ID")
 
 # ================================
 # Get chunks with unstructured
@@ -85,7 +86,7 @@ def summarize_article_data(texts, tables):
     prompt = ChatPromptTemplate.from_template(prompt_text)
 
     # Summary chain
-    model = ChatOpenAI(temperature=0.5, model_name="gpt-3.5-turbo")
+    model = ChatOpenAI(base_url="https://llm.api.cloud.yandex.net/v1",  temperature=0.5, model_name=f"gpt://{folder_id}/qwen3-235b-a22b-fp8/latest")
     summarize_chain = {"element": lambda x: x} | prompt | model | StrOutputParser()
 
 

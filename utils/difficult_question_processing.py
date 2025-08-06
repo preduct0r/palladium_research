@@ -18,13 +18,13 @@ from unstructured.partition.pdf import partition_pdf
 
 load_dotenv()
 
-# Initialize environment variables from .env
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 # Convert tracing flag to boolean
 LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false").lower() in ("true", "1", "yes")
 
+OPENAI_API_KEY = os.getenv("YANDEX_API_KEY")
+folder_id = os.getenv("YANDEX_FOLDER_ID")
 
 _embeddings = GigaChatEmbeddings(model = "EmbeddingsGigaR",credentials= os.environ.get("GIGACHAT_CREDENTIALS"),scope =os.environ.get("GIGACHAT_API_CORP") , verify_ssl_certs = False)
 
@@ -34,7 +34,7 @@ with open("prompts/get_keywords.txt") as f:
     serp_prompt_template = f.read()
 with open("prompts/get_search_query.txt") as f:
     search_query_template = f.read()
-model = ChatOpenAI(temperature=0.5, model_name="gpt-4o")
+model = ChatOpenAI(base_url="https://llm.api.cloud.yandex.net/v1",  temperature=0.5, model_name=f"gpt://{folder_id}/qwen3-235b-a22b-fp8/latest")
 
 
 
