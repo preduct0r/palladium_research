@@ -8,3 +8,5 @@
 
 !articles/*
 .env
+*.xlsx
+*.xlsx#
