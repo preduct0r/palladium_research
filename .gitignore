@@ -6,5 +6,5 @@
 *.jsonl.gz
 *.jsonl.tar.gz
 
-data/
+articles/*
 .env
