@@ -87,9 +87,7 @@ for article_dir in sorted(DATA_ROOT.iterdir()):
             if txt_path.exists():
                 try:
                     value = txt_path.read_text(encoding="utf-8").strip()
-                    # Ограничиваем длину текста для лучшего отображения
-                    if len(value) > 1000:
-                        value = value[:1000] + "..."
+                    # Убрано ограничение длины текста - сохраняем полный текст
                 except Exception as e:
                     print(f"Ошибка чтения файла {txt_path}: {e}")
                     value = ""
