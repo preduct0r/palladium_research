@@ -62,7 +62,6 @@ def build_prompt3(kwargs):
     # Check and read files only if they exist
     idea = ""
     technology = ""
-    tematic = ""
     
     if (answers_dir / "idea.txt").exists():
         with open(answers_dir / "idea.txt", encoding='utf-8') as f:
@@ -72,25 +71,9 @@ def build_prompt3(kwargs):
         with open(answers_dir / "technology.txt", encoding='utf-8') as f:
             technology = f.read()
     
-    if (answers_dir / "tematic.txt").exists():
-        with open(answers_dir / "tematic.txt", encoding='utf-8') as f:
-            tematic = f.read()
-    
     user_question = kwargs["question"]
 
-    # Build user_request conditionally based on available files
-    user_request_parts = [f"Вопрос: {user_question}"]
-    
-    if technology:
-        user_request_parts.append(f"Технология: {technology}")
-    
-    if tematic:
-        user_request_parts.append(f"Тематика: {tematic}")
-    
-    if idea:
-        user_request_parts.append(f"Идея: {idea}")
-    
-    user_request = ". ".join(user_request_parts)
+    user_request_part = f"Вопрос: {user_question}"
 
     neuro_response = kwargs["neuro"]
 
@@ -103,9 +86,16 @@ def build_prompt3(kwargs):
     prompt_template = f"""
     Answer the question based on the following context with information from the article we are researching. Also be free to use the information from the neuro response, which consist of the information from the internet, which can be useful for answering the question, but context from the article is more important.
     Context: {context_text}
-    Question: {user_request}
     Yandex_search_response: {neuro_response}
     """
+
+    if technology:
+        prompt_template.append(f"\nТехнология в статье: {technology}")
+    
+    if idea:
+        prompt_template.append(f"\nИдея в статье: {idea}")
+
+    prompt_template.append(f"\nQuestion: {user_request_part}")  
 
     prompt_content = [{"type": "text", "text": prompt_template}]
 
@@ -120,7 +110,7 @@ def build_prompt3(kwargs):
 
     return ChatPromptTemplate.from_messages(
         [
-            HumanMessage(content=),
+            HumanMessage(content=prompt_content),
         ]
     )
 
