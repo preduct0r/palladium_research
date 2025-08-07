@@ -13,6 +13,7 @@ ANSWERS_DIRNAME = "answers"                        # подпапка с txt
 
 # --- 2. Сопоставление имён файлов → заголовки столбцов ---------------------------
 map_names = {
+    "article_name": "Название статьи",  # добавляем новый столбец для названия
     "doi": "Ссылка [DOI]",
     "date": "Дата публикации", 
     "journal": "Журнал",
@@ -77,19 +78,23 @@ for article_dir in sorted(DATA_ROOT.iterdir()):
     print(f"Обрабатываем: {article_dir.name}")
     
     for col_idx, (fname, _) in enumerate(map_names.items(), start=1):
-        txt_path = answers_folder / f"{fname}.txt"
-        
-        if txt_path.exists():
-            try:
-                value = txt_path.read_text(encoding="utf-8").strip()
-                # Ограничиваем длину текста для лучшего отображения
-                if len(value) > 1000:
-                    value = value[:1000] + "..."
-            except Exception as e:
-                print(f"Ошибка чтения файла {txt_path}: {e}")
-                value = ""
+        if fname == "article_name":
+            # Для названия статьи используем имя папки, заменяя подчеркивания на пробелы
+            value = article_dir.name.replace("_", " ")
         else:
-            value = ""
+            txt_path = answers_folder / f"{fname}.txt"
+            
+            if txt_path.exists():
+                try:
+                    value = txt_path.read_text(encoding="utf-8").strip()
+                    # Ограничиваем длину текста для лучшего отображения
+                    if len(value) > 1000:
+                        value = value[:1000] + "..."
+                except Exception as e:
+                    print(f"Ошибка чтения файла {txt_path}: {e}")
+                    value = ""
+            else:
+                value = ""
             
         cell = ws.cell(row=row_idx, column=col_idx, value=value)
         # Форматирование ячеек с данными
