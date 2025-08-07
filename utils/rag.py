@@ -59,10 +59,6 @@ def build_prompt3(kwargs):
 
     answers_dir = Path("data") / kwargs["article_name"] / "answers"
     
-    # Check and read files only if they exist
-    idea = ""
-    technology = ""
-    
     if (answers_dir / "idea.txt").exists():
         with open(answers_dir / "idea.txt", encoding='utf-8') as f:
             idea = f.read()
@@ -71,10 +67,6 @@ def build_prompt3(kwargs):
         with open(answers_dir / "technology.txt", encoding='utf-8') as f:
             technology = f.read()
     
-    user_question = kwargs["question"]
-
-    user_request_part = f"Вопрос: {user_question}"
-
     neuro_response = kwargs["neuro"]
 
     context_text = ""
@@ -84,18 +76,27 @@ def build_prompt3(kwargs):
 
     # construct prompt with context (including images)
     prompt_template = f"""
-    Answer the question based on the following context with information from the article we are researching. Also be free to use the information from the neuro response, which consist of the information from the internet, which can be useful for answering the question, but context from the article is more important.
+    Answer the question based on the following context with information from the article we are researching. Also feel free to use information from the Yandex search response, which consists of information from the internet that can be useful for answering the question, but context from the article is more important.
     Context: {context_text}
-    Yandex_search_response: {neuro_response}
     """
 
-    if technology:
-        prompt_template.append(f"\nТехнология в статье: {technology}")
+    # if technology:
+    #     prompt_template += f"\nТехнология в статье: {technology}"
     
-    if idea:
-        prompt_template.append(f"\nИдея в статье: {idea}")
+    # if idea:
+    #     prompt_template += f"\nИдея в статье: {idea}"
 
-    prompt_template.append(f"\nQuestion: {user_request_part}")  
+    user_question = kwargs["question"]
+
+    user_request_part = f"Question: {user_question}" 
+    
+    if user_question not in ["Напиши одним предложением о какой промышленной технологии идет речь в этой статье. Выведи только название технологии, ничего больше, ответ должен содержать от 4 до 15 слов", "Какова основная идея изложенна в статье?", "Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'"]:
+        prompt_template += f"\nYandex_search_response: {neuro_response}"
+        
+    prompt_template += user_request_part
+
+    if user_question not in ["Напиши одним предложением о какой промышленной технологии идет речь в этой статье. Выведи только название технологии, ничего больше, ответ должен содержать от 4 до 15 слов", "Какова основная идея изложенна в статье?", "Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'"]:
+        prompt_template += "\nЕсли в статье нет информации, попробуй поразмышлять на основе знаний, которые у тебя есть. Ответ должен быть не больше 3 предложений"
 
     prompt_content = [{"type": "text", "text": prompt_template}]
 

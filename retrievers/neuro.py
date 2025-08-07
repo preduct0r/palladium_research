@@ -58,12 +58,9 @@ def get_neuro_response(user_query):
     response = requests.post(SEARCH_API_GENERATIVE, headers=headers, json=payload)
     
     if response.status_code == 200:
-        return response.json()
+        return response.json()[0]["message"]["content"]
     else:
-        return {
-            "error": f"API request failed with status code: {response.status_code}",
-            "response_text": response.text
-        }
+        return "empty"
 
 
 if __name__ == "__main__":
