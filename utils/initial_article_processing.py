@@ -103,7 +103,7 @@ def summarize_article_data(texts, tables):
     return text_summaries, table_summaries
 
 
-def get_article_vectorstore(texts, text_summaries, tables, table_summaries):
+def get_article_vectorstore(texts, text_summaries, tables, table_summaries, k=10):
     # ================================
     # Load data and summaries to vectorstore
     # The vectorstore to use to index the child chunks
@@ -113,11 +113,12 @@ def get_article_vectorstore(texts, text_summaries, tables, table_summaries):
     store = InMemoryStore()
     id_key = "doc_id"
 
-    # The retriever (empty to start)
+    # The retriever (empty to start) - настраиваем количество возвращаемых документов
     retriever = MultiVectorRetriever(
         vectorstore=vectorstore,
         docstore=store,
         id_key=id_key,
+        search_kwargs={"k": k}  # Устанавливаем количество возвращаемых документов
     )
 
     # Add texts
