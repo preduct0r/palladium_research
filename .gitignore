@@ -7,6 +7,7 @@
 *.jsonl.tar.gz
 
 !articles/*
+!short_data/*
 .env
 *.xlsx
 *.xlsx#
