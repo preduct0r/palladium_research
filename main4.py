@@ -84,10 +84,9 @@ for article_path in Path(os.getenv("ARTICLE_DIR")).glob("*.pdf"):
     print("Извлекаем информацию о статье из OpenAlex...")
     get_article_title_info(article_name)
 
-    # texts, tables = get_article_chunks(article_path)
+    parse_article_pdf(article_path)
+    original_article_data = parse_article_pdf(article_path)['texts'][0].text
 
-    # text_summaries, table_summaries = summarize_article_data(texts, tables)
-    # article_retriever = get_article_vectorstore(texts, text_summaries, tables, table_summaries, k=15)  # Увеличиваем количество чанков до 15
     relevant_data_retriever = load_chroma_db().as_retriever(search_kwargs={"k": 5})
     # Создаем папку для сохранения ответов
     answers_dir = Path("data") / article_name / "answers"
@@ -97,8 +96,8 @@ for article_path in Path(os.getenv("ARTICLE_DIR")).glob("*.pdf"):
         ("Напиши одним предложением о какой промышленной технологии идет речь в этой статье. Выведи только название технологии, ничего больше, ответ должен содержать от 4 до 15 слов", "technology.txt", ""),
         ("Какова основная научная идея изложенна в статье?", "idea.txt", ""),
         ("Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'", "tematic.txt", ""),
-        ("Какой тип у этого проекта? Варианты: прикладной краткосрочный, прикладной среднесрочный, прикладной долгосрочный, фундаментальный", "type.txt", ""),
-        ("Какое потенциальное потребление палладия при применении подхода из статьи в кг?", "potential_consumption.txt", ""),
+        ("Какой тип у этого проекта?", "type.txt", "прикладной краткосрочный, прикладной среднесрочный, прикладной долгосрочный, фундаментальный"),
+        ("Оцени каким может быть потенциальное потребление палладия по миру при условии внедрения подхода из статьи в промышленность?", "potential_consumption.txt", ""),
         ("Какой уровень развития технологии подхода из статьи?", "technology_development_level.txt", "Не индустриализовано, Активно развивается, Полностью индустриализовано"),
         ("Какова новизна применения палладия при применении подхода из статьи?", "palladium_novelty.txt", "Присутствует, Отсутствует"),
         ("Какова научно-техническая реализуемость внедрения палладия при применении подхода из статьи?", "technical_feasibility.txt", "Высокая, Средняя, Низкая, Отсутствует"),
@@ -119,7 +118,7 @@ for article_path in Path(os.getenv("ARTICLE_DIR")).glob("*.pdf"):
 
     for question, filename, options in questions_and_files:
         chain_with_sources = {
-            "article_parts": RunnableLambda(lambda _: parse_article_pdf(article_path)),
+            "original_article_data": RunnableLambda(lambda _: {"texts": [type('TextElement', (), {'text': original_article_data})()]}),
             "relevant_data": relevant_data_retriever | RunnableLambda(parse_docs),
             "neuro": RunnableLambda(get_neuro_with_query),
             "question": RunnablePassthrough(),
@@ -141,10 +140,4 @@ for article_path in Path(os.getenv("ARTICLE_DIR")).glob("*.pdf"):
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(response['response'])
         print(f"Ответ сохранен в: {file_path}")
-
-        print("\n\nContext:")
-        for text in response['context']['texts']:
-            print(text.text)
-            print("Page number: ", text.metadata.page_number)
-            print("\n" + "-"*50 + "\n")
 

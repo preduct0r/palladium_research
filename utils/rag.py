@@ -8,15 +8,10 @@ from pathlib import Path
 
 def parse_docs(docs):
     """Split base64-encoded images and texts"""
-    b64 = []
     text = []
     for doc in docs:
-        try:
-            b64decode(doc)
-            b64.append(doc)
-        except Exception as e:
-            text.append(doc)
-    return {"images": b64, "texts": text}
+        text.append(doc)
+    return {"texts": text}
 
 
 def build_prompt(kwargs):
@@ -123,17 +118,7 @@ def build_prompt3(kwargs):
 
 # ===========================================================
 def build_prompt4(kwargs):
-    original_article_data = kwargs["article_parts"]['texts'][0]['text']
-
-    answers_dir = Path("data") / kwargs["article_name"] / "answers"
-    
-    if (answers_dir / "idea.txt").exists():
-        with open(answers_dir / "idea.txt", encoding='utf-8') as f:
-            idea = f.read()
-    
-    if (answers_dir / "technology.txt").exists():
-        with open(answers_dir / "technology.txt", encoding='utf-8') as f:
-            technology = f.read()
+    original_article_data = kwargs["original_article_data"]['texts'][0].text
     
     neuro_response = kwargs["neuro"]
 
@@ -162,10 +147,13 @@ def build_prompt4(kwargs):
     if user_question not in ["Напиши одним предложением о какой промышленной технологии идет речь в этой статье. Выведи только название технологии, ничего больше, ответ должен содержать от 4 до 15 слов", "Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'"]:
         prompt_template += "\nЕсли в статье нет информации, попробуй поразмышлять на основе знаний, которые у тебя есть."
         
-    # if len(kwargs["options"]) > 0:
-    #     prompt_template += f"\nОтвет должен содержать только один из вариантов и ничего больше: {kwargs['options']}"
-    # else:
-    #     prompt_template += "\nОтвет должен быть не больше 3 предложений"
+    # ================================
+    if len(kwargs["options"]) > 0:
+        prompt_template += f"\nОтвет должен содержать только один из вариантов и ничего больше: {kwargs['options']}"
+    else:
+        prompt_template += "\nОтвет должен быть не больше 3 предложений"
+    if user_question == "Оцени каким может быть потенциальное потребление палладия по миру при условии внедрения подхода из статьи в промышленность?":
+        prompt_template += "\nВ ответе укажи только массу в кг, ничего больше"
 
     prompt_content = [{"type": "text", "text": prompt_template}]
 
