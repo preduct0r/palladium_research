@@ -11,3 +11,6 @@
 .env
 *.xlsx
 *.xlsx#
+chroma_db
+data
+chroma_db_ice_creame

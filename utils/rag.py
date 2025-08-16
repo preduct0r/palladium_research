@@ -121,7 +121,59 @@ def build_prompt3(kwargs):
     )
 
 
+# ===========================================================
+def build_prompt4(kwargs):
+    original_article_data = kwargs["article_parts"]['texts'][0]['text']
 
+    answers_dir = Path("data") / kwargs["article_name"] / "answers"
+    
+    if (answers_dir / "idea.txt").exists():
+        with open(answers_dir / "idea.txt", encoding='utf-8') as f:
+            idea = f.read()
+    
+    if (answers_dir / "technology.txt").exists():
+        with open(answers_dir / "technology.txt", encoding='utf-8') as f:
+            technology = f.read()
+    
+    neuro_response = kwargs["neuro"]
+
+    # construct prompt with context (including images)
+    prompt_template = f"""
+    Answer the question based on the following original article we are researching. Feel free to use information from the Yandex search response, which consists of information from the internet that can be useful for answering the question. Also use information from the relevant data, which consists of information from another articles in the same domain. But remember that data from the original article is key for answering the question, other is just supplement information
+    Original article: {original_article_data}
+    """
+    user_question = kwargs["question"]
+    user_request_part = f"Question: {user_question}" 
+
+
+    
+    if user_question not in ["Напиши одним предложением о какой промышленной технологии идет речь в этой статье. Выведи только название технологии, ничего больше, ответ должен содержать от 4 до 15 слов", "Какова основная идея изложенна в статье?", "Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'"]:
+        prompt_template += f"\nYandex_search_response: {neuro_response}"
+
+        relevant_data = kwargs["relevant_data"]
+        relevant_data_text = ""
+        if len(relevant_data["texts"]) > 0:
+            for text_element in relevant_data["texts"]:
+                relevant_data_text += text_element.page_content
+        prompt_template += f"\nRelevant data: {relevant_data_text}"
+            
+    prompt_template += user_request_part
+
+    if user_question not in ["Напиши одним предложением о какой промышленной технологии идет речь в этой статье. Выведи только название технологии, ничего больше, ответ должен содержать от 4 до 15 слов", "Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'"]:
+        prompt_template += "\nЕсли в статье нет информации, попробуй поразмышлять на основе знаний, которые у тебя есть."
+        
+    # if len(kwargs["options"]) > 0:
+    #     prompt_template += f"\nОтвет должен содержать только один из вариантов и ничего больше: {kwargs['options']}"
+    # else:
+    #     prompt_template += "\nОтвет должен быть не больше 3 предложений"
+
+    prompt_content = [{"type": "text", "text": prompt_template}]
+
+    return ChatPromptTemplate.from_messages(
+        [
+            HumanMessage(content=prompt_content),
+        ]
+    )
 
 
 
