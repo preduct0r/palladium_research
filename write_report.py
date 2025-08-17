@@ -49,11 +49,11 @@ def get_cell_color(value, column_header, color_rules):
     for i, option in enumerate(options):
         if value_str == str(option).strip():
             if i == 0:
-                return "90EE90"  # Светло-зеленый - первый вариант
+                return "C6EFCE"  # Светло-зеленый - первый вариант
             elif i == len(options) - 1:
-                return "FFB6C1"  # Светло-красный - последний вариант
+                return "F4CCCC"  # Светло-красный - последний вариант
             else:
-                return "FFFFE0"  # Светло-желтый - промежуточные варианты
+                return "FFEB9C"  # Светло-желтый - промежуточные варианты
     
     return None  # Если значение не найдено в правилах
 
