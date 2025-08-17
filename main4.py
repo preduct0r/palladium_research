@@ -21,6 +21,7 @@ from utils.difficult_question_processing import download_relevant_pdfs_and_chunk
 from retrievers.neuro import get_neuro_response, get_guery
 from utils.relevant_data_retrieval import load_chroma_db, search_query
 from utils.pdf_parser import parse_single_pdf
+from utils.yandex_gpt import get_query_for_retrieval, yandex_gpt_request
 from dotenv import load_dotenv, find_dotenv
 # ================================
 # Load environment variables from the nearest .env file
@@ -84,19 +85,36 @@ for article_path in Path(os.getenv("ARTICLE_DIR")).glob("*.pdf"):
     print("Извлекаем информацию о статье из OpenAlex...")
     get_article_title_info(article_name)
 
-    parse_article_pdf(article_path)
     original_article_data = parse_article_pdf(article_path)['texts'][0].text
 
-    relevant_data_retriever = load_chroma_db().as_retriever(search_kwargs={"k": 5})
+    relevant_data_retriever = load_chroma_db().as_retriever(search_kwargs={"k": 10})
     # Создаем папку для сохранения ответов
     answers_dir = Path("data") / article_name / "answers"
     answers_dir.mkdir(parents=True, exist_ok=True)
 
+    # ================================
+    # Создаем функцию для генерации query для retrieval
+    def get_retrieval_query(question):
+        """
+        Генерирует специальный запрос для поиска релевантных данных
+        """
+        processed_query = get_guery(question, article_name)
+        answers_dir = Path("data") / article_name / "answers"
+        tematic_file = answers_dir / "tematic.txt"
+        with open(tematic_file, encoding='utf-8') as f:
+            tematic = f.read()
+
+        processed_query = f"Тематика: {tematic}. Вопрос: " + processed_query
+        prompt = f"""
+        Translate the following text to English exactly as it is, without adding, removing, or altering any part of the text.
+        Question: {processed_query}
+        Translated question:
+        """
+        translated_query = yandex_gpt_request(prompt, temperature=0.3, max_tokens=1000)
+        return translated_query
+
     questions_and_files = [   
-        ("Напиши одним предложением о какой промышленной технологии идет речь в этой статье. Выведи только название технологии, ничего больше, ответ должен содержать от 4 до 15 слов", "technology.txt", ""),
-        ("Какова основная научная идея изложенна в статье?", "idea.txt", ""),
-        ("Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'", "tematic.txt", ""),
-        ("Какой тип у этого проекта?", "type.txt", "прикладной краткосрочный, прикладной среднесрочный, прикладной долгосрочный, фундаментальный"),
+        ("Какой тип у этого проекта построенного по подходу из статьи?", "type.txt", "прикладной краткосрочный, прикладной среднесрочный, прикладной долгосрочный, фундаментальный"),
         ("Оцени каким может быть потенциальное потребление палладия по миру при условии внедрения подхода из статьи в промышленность?", "potential_consumption.txt", ""),
         ("Какой уровень развития технологии подхода из статьи?", "technology_development_level.txt", "Не индустриализовано, Активно развивается, Полностью индустриализовано"),
         ("Какова новизна применения палладия при применении подхода из статьи?", "palladium_novelty.txt", "Присутствует, Отсутствует"),
@@ -105,7 +123,7 @@ for article_path in Path(os.getenv("ARTICLE_DIR")).glob("*.pdf"):
         ("Каковы конкурентные преимущества палладия в подходе из статьи?", "competitive_advantages.txt", "Высокие, Средние, Низкие, Отсутствуют"),
         ("Какой уровень готовности подхода из статьи с палладием?", "technology_readiness_level.txt", "Идея, Лаборатория, Прототип, Пилотирование, Индустриализовано"),
         ("Какова перспективность рынка для разработки подхода из статьи?", "market_prospects.txt", "Высокая, Средняя, Низкая"),
-        ("Какой уровень рыночного коммерческого потенциала для реализации подхода из статьи?", "market_commercial_potential.txt", "Отсутствует, Теоретический интерес, Потенциальный рыночный интерес, Начальная рыночная привлекательность, Подтвержденный интерес рынка, Растущий спрос, Коммерческий запуск, Массовый рынок"),
+        ("Какой уровень рыночного коммерческого потенциала для реализации  ", "market_commercial_potential.txt", "Отсутствует, Теоретический интерес, Потенциальный рыночный интерес, Начальная рыночная привлекательность, Подтвержденный интерес рынка, Растущий спрос, Коммерческий запуск, Массовый рынок"),
         ("Какова сложность разработки технологии подхода из статьи?", "development_complexity.txt", "Высокая, Средняя, Низкая"),
         ("Какова сложность внедрения технологии подхода из статьи?", "implementation_complexity.txt", "Высокая, Средняя, Низкая"),
         ("Как ты оцениваешь потенциал коммерциализации подхода из статьи?", "commercialization_potential.txt", "Высокая, Средняя, Низкая"),
@@ -115,11 +133,40 @@ for article_path in Path(os.getenv("ARTICLE_DIR")).glob("*.pdf"):
     ]
 
 
+    for question, filename, options in [   
+        ("Напиши одним предложением о какой промышленной технологии идет речь в этой статье. Выведи только название технологии, ничего больше, ответ должен содержать от 4 до 15 слов", "technology.txt", ""),
+        ("Какова основная научная идея изложенна в статье?", "idea.txt", ""),
+        ("Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'", "tematic.txt", "")
+    ]:
+        chain_with_sources1 = {
+            "original_article_data": RunnableLambda(lambda _: {"texts": [type('TextElement', (), {'text': original_article_data})()]}),
+            "relevant_data": RunnableLambda(lambda _: {"texts": []}),
+            "neuro": RunnableLambda(lambda _: ""),
+            "question": RunnablePassthrough(),
+            "article_name": RunnableLambda(lambda _: article_name),
+            "options": RunnableLambda(lambda _: options)
+        } | RunnablePassthrough().assign(
+            response=(
+                RunnableLambda(build_prompt4)
+                | model
+                | StrOutputParser()
+            )
+        )
+        response = chain_with_sources1.invoke(question)
+
+        print("Response:", response['response'])
+        
+        # Сохраняем ответ в файл
+        file_path = answers_dir / filename
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(response['response'])
+        print(f"Ответ сохранен в: {file_path}")
+
 
     for question, filename, options in questions_and_files:
-        chain_with_sources = {
+        chain_with_sources2 = {
             "original_article_data": RunnableLambda(lambda _: {"texts": [type('TextElement', (), {'text': original_article_data})()]}),
-            "relevant_data": relevant_data_retriever | RunnableLambda(parse_docs),
+            "relevant_data": RunnableLambda(get_retrieval_query) | relevant_data_retriever | RunnableLambda(parse_docs),
             "neuro": RunnableLambda(get_neuro_with_query),
             "question": RunnablePassthrough(),
             "article_name": RunnableLambda(lambda _: article_name),
@@ -131,7 +178,7 @@ for article_path in Path(os.getenv("ARTICLE_DIR")).glob("*.pdf"):
                 | StrOutputParser()
             )
         )
-        response = chain_with_sources.invoke(question)
+        response = chain_with_sources2.invoke(question)
 
         print("Response:", response['response'])
         

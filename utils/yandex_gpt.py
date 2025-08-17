@@ -163,3 +163,24 @@ if __name__ == "__main__":
 
     print("\n" + "="*50)
     print("Тест завершен!") 
+
+
+def get_query_for_retrieval(question, answers_dir):
+    # with open(answers_dir / "idea.txt", encoding='utf-8') as f:
+    #     article_idea = f.read()
+    with open(answers_dir / "technology.txt", encoding='utf-8') as f:
+        article_technology = f.read()
+
+    query = f"""
+    The technology that is discussed in the article: {article_technology}
+    Question: {question}
+    """
+
+    prompt = f"""
+    Translate the question to English.
+    Question: {query}
+    Translated question:
+    """
+
+    translated_query = yandex_gpt_request(prompt, temperature=0.3, max_tokens=1000)
+    return translated_query

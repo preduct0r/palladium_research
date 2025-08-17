@@ -123,8 +123,7 @@ def build_prompt4(kwargs):
     neuro_response = kwargs["neuro"]
 
     # construct prompt with context (including images)
-    prompt_template = f"""
-    Answer the question based on the following original article we are researching. Feel free to use information from the Yandex search response, which consists of information from the internet that can be useful for answering the question. Also use information from the relevant data, which consists of information from another articles in the same domain. But remember that data from the original article is key for answering the question, other is just supplement information
+    prompt_template = f"""Answer the question based on the following original article we are researching. Feel free to use information from the Yandex search response, which consists of information from the internet that can be useful for answering the question. Also use information from the relevant data, which consists of information from another articles in the same domain. But remember that data from the original article is key for answering the question, other is just supplement information
     Original article: {original_article_data}
     """
     user_question = kwargs["question"]
@@ -139,20 +138,21 @@ def build_prompt4(kwargs):
         relevant_data_text = ""
         if len(relevant_data["texts"]) > 0:
             for text_element in relevant_data["texts"]:
-                relevant_data_text += text_element.page_content
+                relevant_data_text += text_element.page_content + "\n"
         prompt_template += f"\nRelevant data: {relevant_data_text}"
             
     prompt_template += user_request_part
 
-    if user_question not in ["Напиши одним предложением о какой промышленной технологии идет речь в этой статье. Выведи только название технологии, ничего больше, ответ должен содержать от 4 до 15 слов", "Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'"]:
+    if user_question not in ["Напиши одним предложением о какой промышленной технологии идет речь в этой статье. Выведи только название технологии, ничего больше, ответ должен содержать от 4 до 15 слов", "Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'", "Какова основная идея изложенна в статье?"]:
         prompt_template += "\nЕсли в статье нет информации, попробуй поразмышлять на основе знаний, которые у тебя есть."
-        
+    
     # ================================
     if len(kwargs["options"]) > 0:
         prompt_template += f"\nОтвет должен содержать только один из вариантов и ничего больше: {kwargs['options']}"
-    else:
+    elif user_question not in ["Напиши одним предложением о какой промышленной технологии идет речь в этой статье. Выведи только название технологии, ничего больше, ответ должен содержать от 4 до 15 слов", "Какова основная идея изложенна в статье?", "Какое направление, тематика у этой статьи? Выведи только тематики ничего больше. Например: 'Катализ, палладий, деароматизация, нефтехимия, каталитическая переработка'"]:
         prompt_template += "\nОтвет должен быть не больше 3 предложений"
-    if user_question == "Оцени каким может быть потенциальное потребление палладия по миру при условии внедрения подхода из статьи в промышленность?":
+
+    if user_question == "Оцени каким может быть потенциальное потребление палладия по миру при условии внедрения подхода из статьи в промышленность?":    
         prompt_template += "\nВ ответе укажи только массу в кг, ничего больше"
 
     prompt_content = [{"type": "text", "text": prompt_template}]
