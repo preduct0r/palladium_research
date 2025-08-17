@@ -42,12 +42,13 @@ def get_cell_color(value, column_header, color_rules):
     
     options = color_rules[column_header]
     
-    # Приводим значение к строке и убираем лишние пробелы
-    value_str = str(value).strip()
+    # Приводим значение к строке, убираем лишние пробелы и переводим в нижний регистр
+    value_str = str(value).strip().lower()
     
-    # Ищем точное совпадение (с учетом возможных различий в пробелах)
+    # Ищем точное совпадение (с учетом возможных различий в пробелах и регистре)
     for i, option in enumerate(options):
-        if value_str == str(option).strip():
+        option_str = str(option).strip().lower()
+        if value_str == option_str:
             if i == 0:
                 return "C6EFCE"  # Светло-зеленый - первый вариант
             elif i == len(options) - 1:
