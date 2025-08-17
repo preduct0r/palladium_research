@@ -8,7 +8,7 @@ from openpyxl.styles.borders import Border, Side
 
 # --- 1. Пути к файлам ------------------------------------------------
 OUTPUT_PATH     = Path("Анализ статей (ИИ)_заполненный.xlsx")
-DATA_ROOT       = Path("data")                     # корень со статьями
+DATA_ROOT       = Path("short_data")                     # корень со статьями
 ANSWERS_DIRNAME = "answers"                        # подпапка с txt
 
 # --- 2. Сопоставление имён файлов → заголовки столбцов ---------------------------
