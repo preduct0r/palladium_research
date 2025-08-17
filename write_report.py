@@ -1,17 +1,67 @@
 
 import os
 from pathlib import Path
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.styles.borders import Border, Side
+import pandas as pd
 
 # --- 1. Пути к файлам ------------------------------------------------
 OUTPUT_PATH     = Path("Анализ статей (ИИ)_заполненный.xlsx")
 DATA_ROOT       = Path("short_data")                     # корень со статьями
 ANSWERS_DIRNAME = "answers"                        # подпапка с txt
+SERVICE_EXCEL   = Path("Анализ статей (ИИ).xlsx")  # файл с правилами окраски
 
-# --- 2. Сопоставление имён файлов → заголовки столбцов ---------------------------
+# --- 2. Функция для чтения цветовых правил из Excel ----------------
+def load_color_rules(excel_file):
+    """Загружает правила окраски из вкладки Service Excel файла"""
+    try:
+        df = pd.read_excel(excel_file, sheet_name='Service', header=None)
+        color_rules = {}
+        
+        # Проверяем все столбцы начиная с D (индекс 3)
+        for col_idx in range(3, df.shape[1]):
+            col_data = df.iloc[:, col_idx].dropna()
+            if len(col_data) > 1:  # если есть данные кроме заголовка
+                header = col_data.iloc[0]
+                options = col_data.iloc[1:].tolist()
+                if options:  # если есть варианты
+                    color_rules[header] = options
+        
+        return color_rules
+    except Exception as e:
+        print(f"Ошибка при загрузке правил окраски: {e}")
+        return {}
+
+# --- 3. Функция для определения цвета ячейки -----------------------
+def get_cell_color(value, column_header, color_rules):
+    """Определяет цвет ячейки на основе значения и правил окраски"""
+    if column_header not in color_rules:
+        return None
+    
+    options = color_rules[column_header]
+    
+    # Приводим значение к строке и убираем лишние пробелы
+    value_str = str(value).strip()
+    
+    # Ищем точное совпадение (с учетом возможных различий в пробелах)
+    for i, option in enumerate(options):
+        if value_str == str(option).strip():
+            if i == 0:
+                return "90EE90"  # Светло-зеленый - первый вариант
+            elif i == len(options) - 1:
+                return "FFB6C1"  # Светло-красный - последний вариант
+            else:
+                return "FFFFE0"  # Светло-желтый - промежуточные варианты
+    
+    return None  # Если значение не найдено в правилах
+
+# --- 4. Загружаем правила окраски -----------------------------------
+color_rules = load_color_rules(SERVICE_EXCEL)
+print(f"Загружено правил окраски для {len(color_rules)} столбцов")
+
+# --- 5. Сопоставление имён файлов → заголовки столбцов ---------------------------
 map_names = {
     "article_name": "Название статьи",  # добавляем новый столбец для названия
     "doi": "Ссылка [DOI]",
@@ -38,12 +88,12 @@ map_names = {
     "comments": "Комментарии",
 }
 
-# --- 3. Создаём новую книгу --------------------------------------------
+# --- 6. Создаём новую книгу --------------------------------------------
 wb = Workbook()
 ws = wb.active
 ws.title = "Анализ статей"
 
-# --- 4. Записываем строку заголовков -----------------------------------
+# --- 7. Записываем строку заголовков -----------------------------------
 headers = list(map_names.values())
 for col, header in enumerate(headers, start=1):
     cell = ws.cell(row=1, column=col, value=header)
@@ -52,7 +102,7 @@ for col, header in enumerate(headers, start=1):
     cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
     cell.alignment = Alignment(wrapText=True, vertical="center", horizontal="center")
 
-# --- 5. Настраиваем фиксированные размеры ---------------------------------------
+# --- 8. Настраиваем фиксированные размеры ---------------------------------------
 COL_WIDTH   = 30     # ширина столбцов (увеличил для лучшей читаемости)
 ROW_HEIGHT  = 120    # высота строк (увеличил для многострочного текста)
 
@@ -64,7 +114,7 @@ for col_idx in range(1, len(map_names) + 1):
 # Высота заголовка
 ws.row_dimensions[1].height = 60
 
-# --- 6. Наполняем таблицу строками по статьям -----------------------------------
+# --- 9. Наполняем таблицу строками по статьям -----------------------------------
 row_idx = 2   # начинаем с второй строки (после заголовков)
 
 for article_dir in sorted(DATA_ROOT.iterdir()):
@@ -77,7 +127,7 @@ for article_dir in sorted(DATA_ROOT.iterdir()):
 
     print(f"Обрабатываем: {article_dir.name}")
     
-    for col_idx, (fname, _) in enumerate(map_names.items(), start=1):
+    for col_idx, (fname, column_header) in enumerate(map_names.items(), start=1):
         if fname == "article_name":
             # Для названия статьи используем имя папки, заменяя подчеркивания на пробелы
             value = article_dir.name.replace("_", " ")
@@ -97,6 +147,10 @@ for article_dir in sorted(DATA_ROOT.iterdir()):
                 value = ""
             
         cell = ws.cell(row=row_idx, column=col_idx, value=value)
+        
+        # Определяем цвет ячейки на основе правил
+        cell_color = get_cell_color(value, column_header, color_rules)
+        
         # Форматирование ячеек с данными
         cell.alignment = Alignment(
             wrapText=True, 
@@ -105,12 +159,16 @@ for article_dir in sorted(DATA_ROOT.iterdir()):
             shrinkToFit=True  # автоматически уменьшает шрифт если не помещается
         )
         cell.font = Font(size=9)
+        
+        # Применяем цветовую заливку если есть правило
+        if cell_color:
+            cell.fill = PatternFill(start_color=cell_color, end_color=cell_color, fill_type="solid")
 
     # Устанавливаем высоту строки
     ws.row_dimensions[row_idx].height = ROW_HEIGHT
     row_idx += 1
 
-# --- 7. Добавляем границы для всех ячеек ------------------------------------
+# --- 10. Добавляем границы для всех ячеек ------------------------------------
 thin_border = Border(
     left=Side(style='thin'),
     right=Side(style='thin'),
@@ -122,11 +180,12 @@ for row in ws.iter_rows(min_row=1, max_row=row_idx-1, min_col=1, max_col=len(map
     for cell in row:
         cell.border = thin_border
 
-# --- 8. Сохраняем результат ------------------------------------------------------
+# --- 11. Сохраняем результат ------------------------------------------------------
 wb.save(OUTPUT_PATH)
 print(f"Готово! Файл сохранён как: {OUTPUT_PATH.resolve()}")
 print(f"Обработано статей: {row_idx - 2}")
 print(f"Столбцов: {len(map_names)}")
+print(f"Применено цветовых правил для {len([h for h in headers if h in color_rules])} столбцов")
 
 
 
